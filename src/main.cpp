@@ -41,10 +41,10 @@ typedef enum {
 
 // ================= DISPLAY =================
 void showMain(int num) {
-    displayMain.showNumberDec(constrain(num, 1, 99), true);
+    displayMain.showNumberDec(constrain(num, 1, 9999), true);
 }
 void showCross(int num) {
-    displayCross.showNumberDec(constrain(num, 1, 99), true);
+    displayCross.showNumberDec(constrain(num, 1, 9999), true);
 }
 
 // ================= LED =================
@@ -76,7 +76,7 @@ void TaskUART(void *pvParameters) {
 
                     if (M > 0 && C > 0) {
                         TrafficData_t data = {M, C};
-                        xQueueOverwrite(xQueue, &data);  // 🔥 luôn giữ data mới nhất
+                        xQueueOverwrite(xQueue, &data);  // Keeping New Data
                         Serial.println("[NEW DATA OVERWRITE]");
                     } else {
                         Serial.println("[INVALID]");
@@ -101,8 +101,8 @@ void TaskTraffic(void *pvParameters) {
 
     TrafficState_t state = PHASE_MAIN_GREEN_CROSS_RED;
 
-    TrafficData_t current = {5, 5};   // đang chạy
-    TrafficData_t pending = current;   // luôn giữ data mới nhất
+    TrafficData_t current = {5, 5};   // Current Data
+    TrafficData_t pending = current;   // AlwaysKeeping New Data
 
     int counter = current.M;
     bool justChanged = true;
@@ -111,7 +111,7 @@ void TaskTraffic(void *pvParameters) {
 
     while (1) {
 
-        // ===== LUÔN LẤY DATA MỚI NHẤT (KHÔNG MẤT DATA) =====
+        // ===== ALWAYS KEEPING NEW DATA (DONT LOSE DATA) =====
         TrafficData_t recv;
         if (xQueueReceive(xQueue, &recv, 0) == pdPASS) {
             pending = recv;
@@ -151,7 +151,7 @@ void TaskTraffic(void *pvParameters) {
 
                     state = PHASE_MAIN_RED_CROSS_GREEN;
 
-                    // 🔥 UPDATE CHÍNH XÁC TẠI GREEN
+                    // UPDATE EXACTLY AT GREEN
                     current.C = pending.C;
 
                     counter = current.C;
@@ -186,7 +186,7 @@ void TaskTraffic(void *pvParameters) {
 
                     state = PHASE_MAIN_GREEN_CROSS_RED;
 
-                    // 🔥 UPDATE CHÍNH XÁC TẠI GREEN
+                    // UPDATE EXACTLY AT GREEN
                     current.M = pending.M;
 
                     counter = current.M;
@@ -222,7 +222,7 @@ void setup() {
     displayMain.setBrightness(0x0f);
     displayCross.setBrightness(0x0f);
 
-    // 🔥 Queue size = 1 → overwrite chuẩn realtime
+    // Queue size = 1 → overwrite realtime
     xQueue = xQueueCreate(1, sizeof(TrafficData_t));
 
     xTaskCreate(TaskUART, "UART", 4096, NULL, 2, NULL);
