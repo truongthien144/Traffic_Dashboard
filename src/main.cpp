@@ -108,7 +108,7 @@ void TaskTraffic(void *pvParameters) {
     bool justChanged = true;
 
     unsigned long lastTick = millis();
-
+    unsigned long idealTime = lastTick; //Variable to test drift (marking the start of system according to the system)
     while (1) {
 
         // ===== ALWAYS KEEPING NEW DATA (DONT LOSE DATA) =====
@@ -121,6 +121,19 @@ void TaskTraffic(void *pvParameters) {
         // ===== TIMER 1s =====
         if (millis() - lastTick >= 1000) {
             lastTick += 1000;
+            idealTime += 1000;
+
+            unsigned long now = millis(); //Variable to test drift (marking the start of system according real time)
+            long drift = now - idealTime; //Variable to test drift (jitter of the system)
+
+            //Console Output to test drift
+            Serial.print("REAL: ");
+            Serial.print(now);
+            Serial.print(" | IDEAL: ");
+            Serial.print(idealTime);
+            Serial.print(" | DRIFT: ");
+            Serial.println(drift);
+
 
             switch (state) {
 
