@@ -1,0 +1,57 @@
+{
+    "landing": {
+        "nav": {
+            "login": "Đăng nhập"
+            },
+        "hero": {
+            "badge": "Đồ án Tốt nghiệp KTMT 2026",
+            "title_1": "Điều phối Giao thông",
+            "title_2": "Thích nghi Thông minh",
+            "desc": "Số hóa nút giao thông bằng mô hình AI nhận diện vật thể và kiến trúc điện toán biên. Tự động tính toán tải lượng PCU để cấp phát chu kỳ đèn xanh tối ưu nhất.",
+            "btn_dashboard": "Vào Bảng Điều Khiển",
+            "widget_title": "Tải lượng Ngã tư A",
+            "widget_pcu": "PCU Trục Chính",
+            "widget_green_light": "Đèn Xanh"
+        },
+        "workflow": {
+            "title": "Luồng Xử lý Xuyên suốt",
+            "desc": "Từ camera hiện trường đến module phần cứng điều khiển, hệ thống hoạt động đồng bộ với độ trễ thấp nhất.",
+            "step1_title": "1. Thu thập Ảnh",
+            "step1_desc": "Video giao thông được ghi nhận liên tục từ IP Camera tại nút giao.",
+            "step2_title": "2. Nhận diện YOLO",
+            "step2_desc": "Nhận diện, bám vết vật thể và đối chiếu lưới định tuyến ảo.",
+            "step3_title": "3. Toán học PCU",
+            "step3_desc": "Quy đổi Tải lượng PCU và áp dụng hàm kẹp phân bổ thời gian xanh.",
+            "step4_title": "4. Vi điều khiển",
+            "step4_desc": "Truyền lệnh xuống bo mạch để thực thi chuyển pha đèn thời gian thực."
+        },
+        "features": {
+            "title_1": "Nền tảng Quản trị",
+            "title_2": "Thế hệ mới",
+            "desc": "Cung cấp cái nhìn toàn cảnh về tình trạng giao thông, cho phép kỹ sư giám sát cả tín hiệu đèn và hiệu suất phần cứng nhúng.",
+            "feat1_title": "Giao tiếp UART / MQTT",
+            "feat1_desc": "Gửi nhận cấu hình 2 chiều giữa Edge Node và Dashboard ổn định.",
+            "feat2_title": "Kiến trúc Đa luồng (RTOS)",
+            "feat2_desc": "Tối ưu tài nguyên MCU, tránh nghẽn cổ chai khi chờ luồng AI.",
+            "feat3_title": "Phản hồi Theo giây",
+            "feat3_desc": "Hệ thống cập nhật pha đèn cho chu kỳ tiếp theo gần như tức thời."
+        },
+        "footer": {
+            "subtitle": "Hệ thống Quản lý Giao thông Thích nghi",
+            "project": "Đồ án Tốt nghiệp HCMUT 2026",
+            "copyright": "© 2026 ITS.Core - Khoa KH&KT Máy Tính, HCMUT. Bảo lưu mọi quyền."
+        }
+    },
+    "login": {
+        "back": "Quay lại",
+        "title": "Đăng nhập",
+        "subtitle": "Hệ thống Điều hành Giao thông ITS",
+        "email_label": "Tài khoản",
+        "password_label": "Mật khẩu",
+        "authenticating": "Đang xác thực...",
+        "submit_btn": "Truy cập Bảng điều khiển",
+        "footer": "Được bảo mật bởi lõi hệ thống ITS.Core",
+        "alert_fail": "Đăng nhập thất bại",
+        "alert_error": "Không thể kết nối tới Server của hệ thống"
+    }
+}

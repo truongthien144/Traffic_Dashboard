@@ -1,0 +1,18 @@
+# Môi trường ảo (Virtual Environments)
+venv/
+env/
+.env
+
+# Rác sinh ra khi chạy Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Cấu hình IDE (Nên bỏ qua để không bị conflict nếu người khác xài IDE khác)
+.vscode/
+.idea/
+*.swp
+
+# Dữ liệu dự án đặc thù
+videos/

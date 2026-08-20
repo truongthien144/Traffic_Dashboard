@@ -1,0 +1,57 @@
+{
+    "landing": {
+        "nav": {
+            "login": "Login"
+        },
+        "hero": {
+            "badge": "Computer Engineering Project 2026",
+            "title_1": "Intelligent Adaptive",
+            "title_2": "Traffic Coordination",
+            "desc": "Digitizing intersections using AI object detection models and edge computing architecture. Automatically calculating PCU load to allocate the most optimal green light cycle.",
+            "btn_dashboard": "Enter Dashboard",
+            "widget_title": "Intersection A Load",
+            "widget_pcu": "Main Axis PCU",
+            "widget_green_light": "Green Light"
+        },
+        "workflow": {
+            "title": "Seamless Processing Pipeline",
+            "desc": "From on-site cameras to hardware control modules, the system operates synchronously with ultra-low latency.",
+            "step1_title": "1. Image Acquisition",
+            "step1_desc": "Traffic video is continuously recorded from IP Cameras at the intersection.",
+            "step2_title": "2. YOLO Detection",
+            "step2_desc": "Object detection, tracking, and mapping against virtual routing grids.",
+            "step3_title": "3. PCU Mathematics",
+            "step3_desc": "Converting PCU load and applying clamping functions to distribute green time.",
+            "step4_title": "4. Microcontroller",
+            "step4_desc": "Transmitting commands to the board to execute real-time phase switching."
+        },
+        "features": {
+            "title_1": "Next-Generation",
+            "title_2": "Management Platform",
+            "desc": "Provides a comprehensive overview of traffic conditions, allowing engineers to monitor both light signals and embedded hardware performance.",
+            "feat1_title": "UART / MQTT Communication",
+            "feat1_desc": "Stable 2-way configuration transmission between Edge Node and Dashboard.",
+            "feat2_title": "Multi-threading (RTOS)",
+            "feat2_desc": "Optimizing MCU resources, preventing bottlenecks while waiting for AI threads.",
+            "feat3_title": "Per-second Response",
+            "feat3_desc": "The system updates traffic light phases for the next cycle almost instantly."
+        },
+        "footer": {
+            "subtitle": "Adaptive Traffic Management System",
+            "project": "HCMUT Graduation Project 2026",
+            "copyright": "© 2026 ITS.Core - CSE, HCMUT. All rights reserved."
+        }
+    },
+    "login": {
+        "back": "Back",
+        "title": "Login",
+        "subtitle": "ITS Traffic Management System",
+        "email_label": "Email Address",
+        "password_label": "Password",
+        "authenticating": "Authenticating...",
+        "submit_btn": "Access Dashboard",
+        "footer": "Secured by ITS.Core System",
+        "alert_fail": "Login failed",
+        "alert_error": "Cannot connect to System Server"
+    }
+}
