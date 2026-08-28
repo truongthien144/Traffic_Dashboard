@@ -2,8 +2,12 @@
 #include <TM1637Display.h>
 
 // ================= CONFIG =================
-#define UART_BAUD 115200
-#define YELLOW_TIME 3
+#define UART_BAUD           115200
+#define YELLOW_TIME         3
+
+#define TIMEOUT_MS          120000UL     // 2 phút không nhận gói tin hợp lệ → Fallback
+#define DEFAULT_M           30
+#define DEFAULT_C           30
 
 // ================= TM1637 =================
 #define CLK1 18
@@ -38,6 +42,11 @@ typedef enum {
     PHASE_MAIN_RED_CROSS_GREEN,
     PHASE_MAIN_RED_CROSS_YELLOW
 } TrafficState_t;
+
+// ================= TIMEOUT =================
+volatile uint32_t lastValidTick = 0;
+volatile bool isFixedMode = true;
+portMUX_TYPE muxTimeout = portMUX_INITIALIZER_UNLOCKED;
 
 // ================= DISPLAY =================
 void showMain(int num) {
@@ -77,7 +86,15 @@ void TaskUART(void *pvParameters) {
                     if (M > 0 && C > 0) {
                         TrafficData_t data = {M, C};
                         xQueueOverwrite(xQueue, &data);  // Keeping New Data
+
+                        // Cập nhật thời điểm nhận hợp lệ
+                        portENTER_CRITICAL(&muxTimeout);
+                        lastValidTick = xTaskGetTickCount();
+                        isFixedMode = false;
+                        portEXIT_CRITICAL(&muxTimeout);
+
                         Serial.println("[NEW DATA OVERWRITE]");
+                        Serial.println("[ACK] OK");
                     } else {
                         Serial.println("[INVALID]");
                     }
@@ -101,14 +118,15 @@ void TaskTraffic(void *pvParameters) {
 
     TrafficState_t state = PHASE_MAIN_GREEN_CROSS_RED;
 
-    TrafficData_t current = {5, 5};   // Current Data
-    TrafficData_t pending = current;   // AlwaysKeeping New Data
+    TrafficData_t current = {30, 30};     // Giống code gốc của bạn
+    TrafficData_t pending = current;    // AlwaysKeeping New Data
 
     int counter = current.M;
     bool justChanged = true;
 
     unsigned long lastTick = millis();
-    unsigned long idealTime = lastTick; //Variable to test drift (marking the start of system according to the system)
+    unsigned long idealTime = lastTick;
+
     while (1) {
 
         // ===== ALWAYS KEEPING NEW DATA (DONT LOSE DATA) =====
@@ -118,29 +136,47 @@ void TaskTraffic(void *pvParameters) {
             Serial.println("[SYNC NEW DATA]");
         }
 
+        
+
         // ===== TIMER 1s =====
         if (millis() - lastTick >= 1000) {
             lastTick += 1000;
             idealTime += 1000;
 
-            unsigned long now = millis(); //Variable to test drift (marking the start of system according real time)
-            long drift = now - idealTime; //Variable to test drift (jitter of the system)
+            unsigned long now = millis();
+            long drift = now - idealTime;
 
-            //Console Output to test drift
+            // Console Output to test drift
             Serial.print("REAL: ");
             Serial.print(now);
             Serial.print(" | IDEAL: ");
             Serial.print(idealTime);
             Serial.print(" | DRIFT: ");
             Serial.println(drift);
+                // ===== TIMEOUT FALLBACK =====
+            portENTER_CRITICAL(&muxTimeout);
+            uint32_t nowTick = xTaskGetTickCount();
+            bool needFallback = (!isFixedMode) &&
+                                ((nowTick - lastValidTick) > pdMS_TO_TICKS(TIMEOUT_MS));
+            portEXIT_CRITICAL(&muxTimeout);
 
+            if (needFallback) {
+                pending.M = DEFAULT_M;
+                pending.C = DEFAULT_C;
 
+                portENTER_CRITICAL(&muxTimeout);
+                isFixedMode = true;
+                portEXIT_CRITICAL(&muxTimeout);
+
+                Serial.println("[FALLBACK] FIXED-TIME");
+            }
+            
             switch (state) {
 
             // ================= MAIN GREEN =================
             case PHASE_MAIN_GREEN_CROSS_RED:
-                setMainLight(0,0,1);
-                setCrossLight(1,0,0);
+                setMainLight(0, 0, 1);
+                setCrossLight(1, 0, 0);
 
                 showMain(counter);
                 showCross(counter + YELLOW_TIME);
@@ -154,19 +190,17 @@ void TaskTraffic(void *pvParameters) {
 
             // ================= MAIN YELLOW =================
             case PHASE_MAIN_YELLOW_CROSS_RED:
-                setMainLight(0,1,0);
-                setCrossLight(1,0,0);
+                setMainLight(0, 1, 0);
+                setCrossLight(1, 0, 0);
 
                 showMain(counter);
                 showCross(counter);
 
                 if (counter == 1) {
-
                     state = PHASE_MAIN_RED_CROSS_GREEN;
 
                     // UPDATE EXACTLY AT GREEN
                     current.C = pending.C;
-
                     counter = current.C;
                     justChanged = true;
                 }
@@ -174,8 +208,8 @@ void TaskTraffic(void *pvParameters) {
 
             // ================= CROSS GREEN =================
             case PHASE_MAIN_RED_CROSS_GREEN:
-                setMainLight(1,0,0);
-                setCrossLight(0,0,1);
+                setMainLight(1, 0, 0);
+                setCrossLight(0, 0, 1);
 
                 showMain(counter + YELLOW_TIME);
                 showCross(counter);
@@ -189,19 +223,17 @@ void TaskTraffic(void *pvParameters) {
 
             // ================= CROSS YELLOW =================
             case PHASE_MAIN_RED_CROSS_YELLOW:
-                setMainLight(1,0,0);
-                setCrossLight(0,1,0);
+                setMainLight(1, 0, 0);
+                setCrossLight(0, 1, 0);
 
                 showMain(counter);
                 showCross(counter);
 
                 if (counter == 1) {
-
                     state = PHASE_MAIN_GREEN_CROSS_RED;
 
                     // UPDATE EXACTLY AT GREEN
                     current.M = pending.M;
-
                     counter = current.M;
                     justChanged = true;
                 }
@@ -237,6 +269,8 @@ void setup() {
 
     // Queue size = 1 → overwrite realtime
     xQueue = xQueueCreate(1, sizeof(TrafficData_t));
+
+    lastValidTick = xTaskGetTickCount();
 
     xTaskCreate(TaskUART, "UART", 4096, NULL, 2, NULL);
     xTaskCreate(TaskTraffic, "TRAFFIC", 4096, NULL, 1, NULL);
