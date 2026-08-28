@@ -8,7 +8,6 @@
 # import jwt
 # from datetime import datetime, timedelta
 # import time
-
 # app = FastAPI(title="ITS Core API - Multi Camera")
 
 # app.add_middleware(
@@ -234,7 +233,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from config import INTERSECTIONS
 from auth import LoginRequest, verify_login
-from detect import generate_frames
 
 app = FastAPI(title="ITS Core API - Modular Architecture")
 
