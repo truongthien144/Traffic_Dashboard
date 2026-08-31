@@ -83,10 +83,18 @@ def read_from_esp():
 
                     elif line.startswith("[INVALID]") or line.startswith("[PARSE FAIL]"):
                         print(f"[{timestamp}] ⚠️  Gói tin gửi lên bị lỗi")
-
+                    elif line.startswith("ENV:"):
+                        try:
+                         parts = line[4:].split("|")
+                         temp = float(parts[0].split(":")[1])
+                         humi = float(parts[1].split(":")[1])
+                         print(f"Nhiệt độ: {temp}°C | Độ ẩm: {humi}%")
+                         # → Gửi tiếp lên Dashboard ở code khác
+                        except:
+                         print("Lỗi parse ENV")
         except Exception as e:
-            print(f"[UART] Lỗi đọc: {e}")
-            time.sleep(0.5)
+         print(f"[UART] Lỗi đọc: {e}")
+         time.sleep(0.5)
 
         time.sleep(0.05)
 
