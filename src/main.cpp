@@ -1,6 +1,13 @@
 #include <Arduino.h>
 #include <TM1637Display.h>
+// ========= DHT20 =========
+#include <Wire.h>
+#include "DHT20.h"
+DHT20 dht;
+#define DHT_SDA 25
+#define DHT_SCL 26
 
+#define ENV_SEND_INTERVAL_MS  10000UL   // gửi mỗi 10 giây
 // ================= CONFIG =================
 #define UART_BAUD           115200
 #define YELLOW_TIME         3
@@ -147,12 +154,12 @@ void TaskTraffic(void *pvParameters) {
             long drift = now - idealTime;
 
             // Console Output to test drift
-            Serial.print("REAL: ");
-            Serial.print(now);
-            Serial.print(" | IDEAL: ");
-            Serial.print(idealTime);
-            Serial.print(" | DRIFT: ");
-            Serial.println(drift);
+            // Serial.print("REAL: ");
+            // Serial.print(now);
+            // Serial.print(" | IDEAL: ");
+            // Serial.print(idealTime);
+            // Serial.print(" | DRIFT: ");
+            // Serial.println(drift);
                 // ===== TIMEOUT FALLBACK =====
             portENTER_CRITICAL(&muxTimeout);
             uint32_t nowTick = xTaskGetTickCount();
@@ -251,7 +258,33 @@ void TaskTraffic(void *pvParameters) {
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
+// ================= DHT20 TASH =================
+void TaskDHT20(void *pvParameters) {
+    Wire.begin(DHT_SDA, DHT_SCL);
+    dht.begin();
+    if (dht.begin() == 0) {
+        Serial.println("[DHT] Khởi tạo thất bại!");
+    } else {
+        Serial.println("[DHT] Khởi tạo thành công");
+    }
 
+    while (1) {
+        dht.read();
+        float temp = dht.getTemperature();
+        float humi = dht.getHumidity();
+        if (!isnan(temp) && !isnan(humi)) {
+            // Gửi về Raspberry Pi
+            Serial.print("ENV:T:");
+            Serial.print(temp, 1);
+            Serial.print("|H:");
+            Serial.println(humi, 1);
+        } else {
+            Serial.println("[DHT] Đọc lỗi");
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(ENV_SEND_INTERVAL_MS));
+    }
+}
 // ================= SETUP =================
 void setup() {
     Serial.begin(UART_BAUD);
@@ -274,6 +307,7 @@ void setup() {
 
     xTaskCreate(TaskUART, "UART", 4096, NULL, 2, NULL);
     xTaskCreate(TaskTraffic, "TRAFFIC", 4096, NULL, 1, NULL);
+    xTaskCreate(TaskDHT20, "DHT20", 3072, NULL, 1, NULL);
 }
 
 void loop() {}
