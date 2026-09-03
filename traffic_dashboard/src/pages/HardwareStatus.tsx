@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Cpu, HardDrive, Thermometer, Zap, Server, Activity, 
   Database, RefreshCw, AlertCircle, CheckCircle2, Clock, ArrowRightLeft
@@ -21,6 +21,28 @@ const HardwareStatus: React.FC = () => {
     setIsRefreshing(true);
     setTimeout(() => setIsRefreshing(false), 1000);
   };
+const [env, setEnv] = useState({ temperature: null as number | null, humidity: null as number | null });
+
+useEffect(() => {
+  const fetchEnv = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/api/environment");
+      if (res.ok) {
+        const data = await res.json();
+        setEnv({
+          temperature: data.temperature,
+          humidity: data.humidity
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  fetchEnv();
+  const interval = setInterval(fetchEnv, 5000); // 5 giây 1 lần
+  return () => clearInterval(interval);
+}, []);
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out max-w-7xl mx-auto">
@@ -80,24 +102,40 @@ const HardwareStatus: React.FC = () => {
           </div>
         </div>
 
-        {/* Temperature */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm cursor-default hover:border-blue-200 transition-colors">
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-10 h-10 bg-red-50 text-red-600 rounded-lg flex items-center justify-center">
-              <Thermometer className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-md border border-red-100 flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" /> Cảnh báo
-            </span>
-          </div>
-          <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Core Temp</p>
-          <div className="flex items-baseline gap-2 mb-3">
-            <h3 className="text-3xl font-black text-red-600">65<span className="text-lg text-red-400 font-bold">°C</span></h3>
-          </div>
-          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-red-500 h-full w-[85%] rounded-full animate-pulse"></div>
-          </div>
-        </div>
+  <div className="flex justify-between items-start mb-4">
+    <div className="w-10 h-10 bg-red-50 text-red-600 rounded-lg flex items-center justify-center">
+      <Thermometer className="w-5 h-5" />
+    </div>
+    {env.temperature !== null && env.temperature > 35 ? (
+      <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-md border border-red-100 flex items-center gap-1">
+        <AlertCircle className="w-3 h-3" /> Cao
+      </span>
+    ) : (
+      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+        Bình thường
+      </span>
+    )}
+  </div>
+
+  <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+    Nhiệt độ môi trường (DHT20)
+  </p>
+
+  <div className="flex items-baseline gap-2 mb-1">
+    <h3 className="text-3xl font-black text-blue-950">
+      {env.temperature !== null ? env.temperature : "--"}
+      <span className="text-lg text-slate-400 font-bold">°C</span>
+    </h3>
+  </div>
+
+  <p className="text-sm text-slate-500">
+    Độ ẩm:{" "}
+    <span className="font-bold text-blue-600">
+      {env.humidity !== null ? `${env.humidity}%` : "--"}
+    </span>
+  </p>
+</div>
 
         {/* Storage / SD Card */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm cursor-default hover:border-blue-200 transition-colors">

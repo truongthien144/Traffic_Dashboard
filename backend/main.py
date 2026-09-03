@@ -232,15 +232,16 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from config import INTERSECTIONS
+from config import INTERSECTIONS, ENVIRONMENT
 from auth import LoginRequest, verify_login
 from detect import generate_frames
+from datetime import datetime
 
 app = FastAPI(title="ITS Core API - Modular Architecture")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"], 
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -265,28 +266,51 @@ def get_traffic_stats(intersection_id: str):
         "name": config["name"],
         "counts_main": config["counts_main"],
         "counts_cross": config["counts_cross"],
-        "events": config["events"]
+        "events": config["events"],
+        "pcu_main": config.get("pcu_main", 0.0),
+        "pcu_cross": config.get("pcu_cross", 0.0),
+        "t_green_main": config.get("t_green_main", 30),
+        "t_green_cross": config.get("t_green_cross", 30),
+        "mode": config.get("mode", "fixed"),
+        "last_update": config.get("last_update"),
     }
 
-# THÊM MỚI: API gom dữ liệu 3 ngã tư phục vụ Dashboard Overview
+@app.get("/api/environment")
+def get_environment():
+    return ENVIRONMENT
+
+@app.post("/api/update_control/{intersection_id}")
+def update_control(intersection_id: str, data: dict):
+    if intersection_id not in INTERSECTIONS:
+        raise HTTPException(status_code=404, detail="Không tìm thấy ngã tư")
+    config = INTERSECTIONS[intersection_id]
+    config["pcu_main"] = data.get("pcu_main", config.get("pcu_main", 0.0))
+    config["pcu_cross"] = data.get("pcu_cross", config.get("pcu_cross", 0.0))
+    config["t_green_main"] = data.get("t_green_main", config.get("t_green_main", 30))
+    config["t_green_cross"] = data.get("t_green_cross", config.get("t_green_cross", 30))
+    config["mode"] = data.get("mode", config.get("mode", "fixed"))
+    config["last_update"] = datetime.now().timestamp()
+    return {"status": "ok"}
+
+@app.post("/api/update_environment")
+def update_environment(data: dict):
+    ENVIRONMENT["temperature"] = data.get("temperature")
+    ENVIRONMENT["humidity"] = data.get("humidity")
+    ENVIRONMENT["last_update"] = datetime.now().isoformat()
+    return {"status": "ok"}
+
 @app.get("/api/overview_stats")
 def get_overview_stats():
     total_pcu = 0
     total_vehicles = 0
-    
-    # Quét qua toàn bộ ngã tư và cộng dồn
     for node_id, config in INTERSECTIONS.items():
         motos = config["counts_main"].get(3, 0) + config["counts_cross"].get(3, 0)
         cars = config["counts_main"].get(0, 0) + config["counts_cross"].get(0, 0)
         trucks = config["counts_main"].get(2, 0) + config["counts_cross"].get(2, 0)
         buses = config["counts_main"].get(1, 0) + config["counts_cross"].get(1, 0)
-        
-        # Hệ số PCU cơ bản
         pcu = int((motos * 0.5) + (cars * 1) + (trucks * 2) + (buses * 2))
-        
         total_pcu += pcu
         total_vehicles += (motos + cars + trucks + buses)
-
     return {
         "total_intersections": len(INTERSECTIONS),
         "active_nodes": len(INTERSECTIONS),
