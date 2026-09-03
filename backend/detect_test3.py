@@ -14,6 +14,7 @@ from datetime import datetime
 from ultralytics import YOLO
 from config import INTERSECTIONS
 import serial
+import requests
 
 print("[*] Đang khởi tạo bộ nhớ độc lập cho 3 ngã tư...")
 
@@ -34,7 +35,38 @@ PCU_FACTORS = {
 }
 
 C_MAX = 60  # Chu kỳ tối đa (giây)
+# ==================== WEB ====================
+DASHBOARD_URL = "http://192.168.101.8:8000"
 
+def push_control_to_dashboard(cam_id, pcu_main, pcu_cross, t_main, t_cross, mode="adaptive"):
+    try:
+        requests.post(
+            f"{DASHBOARD_URL}/api/update_control/{cam_id}",
+            json={
+                "pcu_main": round(float(pcu_main), 1),
+                "pcu_cross": round(float(pcu_cross), 1),
+                "t_green_main": int(round(t_main)),
+                "t_green_cross": int(round(t_cross)),
+                "mode": mode
+            },
+            timeout=3.0
+        )
+    except Exception as e:
+        print(f"[Dashboard] Lỗi gửi control: {e}")
+
+
+def push_environment_to_dashboard(temp, humi):
+    try:
+        requests.post(
+            f"{DASHBOARD_URL}/api/update_environment",
+            json={
+                "temperature": round(float(temp), 1),
+                "humidity": round(float(humi), 1)
+            },
+            timeout=1.0
+        )
+    except Exception as e:
+        print(f"[Dashboard] Lỗi gửi ENV: {e}")
 # ==================== UART ====================
 UART_PORT = "/dev/ttyUSB0"   # Đổi thành /dev/serial0 hoặc /dev/ttyAMA0 nếu dùng GPIO UART
 BAUD = 115200
@@ -90,6 +122,7 @@ def read_from_esp():
                          humi = float(parts[1].split(":")[1])
                          print(f"Nhiệt độ: {temp}°C | Độ ẩm: {humi}%")
                          # → Gửi tiếp lên Dashboard ở code khác
+                         push_environment_to_dashboard(temp, humi)
                         except:
                          print("Lỗi parse ENV")
         except Exception as e:
@@ -194,7 +227,8 @@ def print_traffic_stats(cam_id, config):
     # Chỉ gửi khi đang Adaptive (hoặc bạn muốn luôn gửi thì bỏ if)
     with uart_lock:
         current_mode = is_adaptive
-
+        mode_str = "adaptive" if current_mode else "fixed"
+        push_control_to_dashboard(cam_id, q_main, q_cross, t_main, t_cross, mode=mode_str)
     if current_mode:
         transmit_data_to_mcu(int(round(t_main)), int(round(t_cross)))
     else:

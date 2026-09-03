@@ -233,6 +233,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from config import INTERSECTIONS
 from auth import LoginRequest, verify_login
+from datetime import datetime
 
 app = FastAPI(title="ITS Core API - Modular Architecture")
 
@@ -264,7 +265,36 @@ def get_traffic_stats(intersection_id: str):
         "counts_main": config["counts_main"],
         "counts_cross": config["counts_cross"],
         "events": config["events"]
+        "pcu_main": config.get("pcu_main", 0.0),
+        "pcu_cross": config.get("pcu_cross", 0.0),
+        "t_green_main": config.get("t_green_main", 30),
+        "t_green_cross": config.get("t_green_cross", 30),
+        "mode": config.get("mode", "fixed"),
+        "last_update": config.get("last_update"),
     }
+@app.get("/api/environment")
+def get_environment():
+    return ENVIRONMENT
+
+@app.post("/api/update_control/{intersection_id}")
+def update_control(intersection_id: str, data: dict):
+    if intersection_id not in INTERSECTIONS:
+        raise HTTPException(status_code=404, detail="Không tìm thấy ngã tư")
+    config = INTERSECTIONS[intersection_id]
+    config["pcu_main"] = data.get("pcu_main", config.get("pcu_main", 0.0))
+    config["pcu_cross"] = data.get("pcu_cross", config.get("pcu_cross", 0.0))
+    config["t_green_main"] = data.get("t_green_main", config.get("t_green_main", 30))
+    config["t_green_cross"] = data.get("t_green_cross", config.get("t_green_cross", 30))
+    config["mode"] = data.get("mode", config.get("mode", "fixed"))
+    config["last_update"] = datetime.now().timestamp()
+    return {"status": "ok"}
+
+@app.post("/api/update_environment")
+def update_environment(data: dict):
+    ENVIRONMENT["temperature"] = data.get("temperature")
+    ENVIRONMENT["humidity"] = data.get("humidity")
+    ENVIRONMENT["last_update"] = datetime.now().isoformat()
+    return {"status": "ok"}
 
 # THÊM MỚI: API gom dữ liệu 3 ngã tư phục vụ Dashboard Overview
 @app.get("/api/overview_stats")
