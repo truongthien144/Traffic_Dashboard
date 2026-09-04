@@ -39,7 +39,7 @@ const IntersectionAnalytics: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/api/traffic_stats/${currentId}`);
+        const response = await fetch(`http://192.168.101.82:8000/api/traffic_stats/${currentId}`);
         const data = await response.json();
 	const serverLastUpdate = data.last_update ? data.last_update * 1000 : 0; // đổi sang ms
 	setLastUpdate(serverLastUpdate);
@@ -170,7 +170,7 @@ const IntersectionAnalytics: React.FC = () => {
 
           <div className={`relative w-full bg-slate-900 flex items-center justify-center overflow-hidden border border-slate-800/50 shadow-2xl ${isFullscreen ? 'h-full rounded-2xl' : 'aspect-[4/3] sm:aspect-video md:aspect-[21/9] rounded-xl'}`}>
             <img 
-              src={`http://localhost:8000/api/video_feed/${currentId}`} 
+              src={`http://192.168.101.82:8000/api/video_feed/${currentId}`} 
               alt="Live Traffic AI Camera"
               className="w-full h-full object-contain"
             />

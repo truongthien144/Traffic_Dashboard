@@ -39,7 +39,7 @@ const HardwareStatus: React.FC = () => {
   useEffect(() => {
     const fetchEnv = async () => {
       try {
-        const res = await fetch("http://localhost:8000/api/environment");
+        const res = await fetch("http://192.168.101.82:8000/api/environment");
         if (res.ok) {
           const data = await res.json();
           setEnv({
@@ -63,7 +63,7 @@ const HardwareStatus: React.FC = () => {
     const checkStatus = async () => {
       try {
         // 1. Kiểm tra mode từ ngã tư 1
-        const res = await fetch("http://localhost:8000/api/traffic_stats/1");
+        const res = await fetch("http://192.168.101.82:8000/api/traffic_stats/1");
         let fixedFromMode = false;
         let staleControl = false;
 
@@ -229,16 +229,36 @@ const HardwareStatus: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center cursor-default">
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center shadow-sm">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100">Online</span>
-          </div>
-          <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Trạng thái Giao tiếp</p>
-          <h3 className="text-2xl font-black text-blue-950 mb-1">Ổn định</h3>
-          <p className="text-sm font-medium text-slate-400">Độ trễ phản hồi: 12ms</p>
-        </div>
+  <div className="flex items-center justify-between mb-4">
+    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shadow-sm ${
+      isDataLost 
+        ? "bg-red-50 text-red-600" 
+        : "bg-emerald-50 text-emerald-600"
+    }`}>
+      {isDataLost ? <AlertCircle className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
+    </div>
+    
+    {isDataLost ? (
+      <span className="text-xs font-bold text-red-600 bg-red-50 px-2.5 py-1 rounded-md border border-red-100">
+        Offline
+      </span>
+    ) : (
+      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100">
+        Online
+      </span>
+    )}
+  </div>
+  
+  <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Trạng thái Giao tiếp</p>
+  
+  <h3 className={`text-2xl font-black mb-1 ${isDataLost ? "text-red-500" : "text-blue-950"}`}>
+    {isDataLost ? "Mất kết nối" : "Ổn định"}
+  </h3>
+  
+  <p className="text-sm font-medium text-slate-400">
+    {isDataLost ? "Không có phản hồi" : "Độ trễ phản hồi: 12ms"}
+  </p>
+</div>
 
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center cursor-default">
           <div className="flex items-center justify-between mb-4">

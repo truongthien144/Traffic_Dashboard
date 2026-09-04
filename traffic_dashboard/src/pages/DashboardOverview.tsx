@@ -19,7 +19,7 @@ const mockIntersections = [
     name: 'Ngã tư Điện Biên Phủ - Đinh Tiên Hoàng', 
     status: 'online', 
     greenTime: '45s', 
-    aiStatus: 'YOLOv8-Active', 
+    aiStatus: 'YOLO26-Active', 
     ping: '12ms' 
   },
   { 
@@ -27,7 +27,7 @@ const mockIntersections = [
     name: 'Ngã tư Phạm Văn Đồng', 
     status: 'online', 
     greenTime: '60s', 
-    aiStatus: 'YOLOv8-Active', 
+    aiStatus: 'YOLO26-Active', 
     ping: '45ms' 
   },
   { 
@@ -35,7 +35,7 @@ const mockIntersections = [
     name: 'Ngã tư Nguyễn Hữu Cảnh', 
     status: 'online', 
     greenTime: '60s', 
-    aiStatus: 'High-Load', 
+    aiStatus: 'YOLO26-Active', 
     ping: '25ms' 
   },
 ];
@@ -47,16 +47,18 @@ const DashboardOverview: React.FC = () => {
   const [overviewStats, setOverviewStats] = useState({
     total_intersections: 3,
     active_nodes: 0,
+    active_cameras: [] as string[],
     total_pcu: 0,
     total_vehicles_24h: 0,
     system_status: "Đang kết nối..."
   });
-
+const isOffline = overviewStats.system_status === "Mất kết nối";
+const activeCameras = overviewStats.active_cameras || [];
   // Gọi API tổng hợp dữ liệu mỗi 2 giây
   useEffect(() => {
     const fetchOverviewStats = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/overview_stats');
+        const response = await fetch('http://192.168.101.82:8000/api/overview_stats');
         if (response.ok) {
           const data = await response.json();
           setOverviewStats(data);
@@ -115,11 +117,15 @@ const DashboardOverview: React.FC = () => {
         {/* Stat Card 1 */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-4">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
-              <MapPin className="w-6 h-6" />
-            </div>
-            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">Online</span>
-          </div>
+  <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+    <MapPin className="w-6 h-6" />
+  </div>
+  {isOffline ? (
+    <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-md">Offline</span>
+  ) : (
+    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">Online</span>
+  )}
+</div>
           <p className="text-sm font-bold text-slate-500 mb-1">Nút giao Hoạt động</p>
           <div className="flex items-baseline gap-1">
             <h3 className="text-3xl font-bold text-blue-950">{overviewStats.active_nodes}</h3>
@@ -147,7 +153,7 @@ const DashboardOverview: React.FC = () => {
             <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center">
               <Activity className="w-6 h-6" />
             </div>
-            {overviewStats.total_pcu > 500 ? (
+            {overviewStats.total_pcu > 10 ? (
               <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md">Đông đúc</span>
             ) : (
               <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">Thông thoáng</span>
@@ -207,13 +213,17 @@ const DashboardOverview: React.FC = () => {
                     <div className="text-xs text-slate-400 font-medium font-mono">{node.id}</div>
                   </td>
                   
-                  <td className="px-6 py-4">
-                    {node.status === 'online' && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Hoạt động
-                      </span>
-                    )}
-                  </td>
+                   <td className="px-6 py-4">
+                    {isOffline || !activeCameras.includes(node.id.replace('INT-0', '')) ? (
+                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                      <AlertTriangle className="w-3.5 h-3.5" /> Tạm dừng
+                     </span>
+                   ) : (
+                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Hoạt động
+                     </span>
+                   )}
+                   </td>
                   
                   <td className="px-6 py-4">
                     <div className="text-lg font-bold text-blue-600">
