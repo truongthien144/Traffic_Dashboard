@@ -89,8 +89,6 @@ const IntersectionAnalytics: React.FC = () => {
   		setMode("fixed");
   		setTGreenMain(30);
   		setTGreenCross(30);
-		setPcuMain(0);
-		setPcuCross(0);
   		// Không cập nhật lastUpdate để giữ trạng thái Fixed
 	}
 
@@ -291,11 +289,11 @@ const IntersectionAnalytics: React.FC = () => {
                 <div className="relative z-10">
                   <div className="flex items-baseline gap-2">
                     <h4 className="text-white font-black text-2xl sm:text-3xl">
-                      {pcuMain.toFixed(1)}
+                      {mode === "fixed" ? "--" : pcuMain.toFixed(1)}
                     </h4>
                     <span className="text-blue-300 text-lg font-medium">/</span>
                     <h4 className="text-white font-black text-2xl sm:text-3xl">
-                      {pcuCross.toFixed(1)}
+                      {mode === "fixed" ? "--" : pcuCross.toFixed(1)}
                     </h4>
                   </div>
                   <p className="text-blue-300 text-xs mt-1 font-medium">

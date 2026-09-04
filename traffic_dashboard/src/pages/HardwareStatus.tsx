@@ -17,32 +17,93 @@ const cpuTempData = [
 const HardwareStatus: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const [env, setEnv] = useState<{
+    temperature: number | null;
+    humidity: number | null;
+    last_update: string | null;
+  }>({
+    temperature: null,
+    humidity: null,
+    last_update: null,
+  });
+
+  // true = đang Fixed / mất dữ liệu → hiển thị "--"
+  const [isDataLost, setIsDataLost] = useState(false);
+
   const handleRefresh = () => {
     setIsRefreshing(true);
     setTimeout(() => setIsRefreshing(false), 1000);
   };
-const [env, setEnv] = useState({ temperature: null as number | null, humidity: null as number | null });
 
-useEffect(() => {
-  const fetchEnv = async () => {
-    try {
-      const res = await fetch("http://localhost:8000/api/environment");
-      if (res.ok) {
-        const data = await res.json();
-        setEnv({
-          temperature: data.temperature,
-          humidity: data.humidity
-        });
+  // Lấy dữ liệu DHT20
+  useEffect(() => {
+    const fetchEnv = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/api/environment");
+        if (res.ok) {
+          const data = await res.json();
+          setEnv({
+            temperature: data.temperature,
+            humidity: data.humidity,
+            last_update: data.last_update ?? null,
+          });
+        }
+      } catch (e) {
+        console.error(e);
       }
-    } catch (e) {
-      console.error(e);
-    }
-  };
+    };
 
-  fetchEnv();
-  const interval = setInterval(fetchEnv, 5000); // 5 giây 1 lần
-  return () => clearInterval(interval);
-}, []);
+    fetchEnv();
+    const interval = setInterval(fetchEnv, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Kiểm tra mode Fixed + dữ liệu môi trường có cũ không
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        // 1. Kiểm tra mode từ ngã tư 1
+        const res = await fetch("http://localhost:8000/api/traffic_stats/1");
+        let fixedFromMode = false;
+        let staleControl = false;
+
+        if (res.ok) {
+          const data = await res.json();
+          fixedFromMode = data.mode === "fixed";
+
+          if (data.last_update) {
+            const seconds = (Date.now() - data.last_update * 1000) / 1000;
+            staleControl = seconds > 120; // 2 phút
+          } else {
+            staleControl = true;
+          }
+        }
+
+        // 2. Kiểm tra dữ liệu DHT20 có cũ không
+        let staleEnv = false;
+        if (env.last_update) {
+          const envTime = new Date(env.last_update).getTime();
+          const seconds = (Date.now() - envTime) / 1000;
+          staleEnv = seconds > 120;
+        } else {
+          staleEnv = env.temperature === null;
+        }
+
+        setIsDataLost(fixedFromMode || staleControl || staleEnv);
+      } catch (e) {
+        // Nếu không gọi được API → coi như mất dữ liệu
+        setIsDataLost(true);
+      }
+    };
+
+    checkStatus();
+    const interval = setInterval(checkStatus, 3000);
+    return () => clearInterval(interval);
+  }, [env.last_update, env.temperature]);
+
+  // Giá trị hiển thị
+  const displayTemp = isDataLost || env.temperature === null ? "--" : env.temperature;
+  const displayHumi = isDataLost || env.humidity === null ? "--" : `${env.humidity}%`;
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out max-w-7xl mx-auto">
@@ -102,40 +163,46 @@ useEffect(() => {
           </div>
         </div>
 
+        {/* DHT20 - Nhiệt độ & Độ ẩm */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm cursor-default hover:border-blue-200 transition-colors">
-  <div className="flex justify-between items-start mb-4">
-    <div className="w-10 h-10 bg-red-50 text-red-600 rounded-lg flex items-center justify-center">
-      <Thermometer className="w-5 h-5" />
-    </div>
-    {env.temperature !== null && env.temperature > 35 ? (
-      <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-md border border-red-100 flex items-center gap-1">
-        <AlertCircle className="w-3 h-3" /> Cao
-      </span>
-    ) : (
-      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
-        Bình thường
-      </span>
-    )}
-  </div>
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-10 h-10 bg-red-50 text-red-600 rounded-lg flex items-center justify-center">
+              <Thermometer className="w-5 h-5" />
+            </div>
 
-  <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
-    Nhiệt độ môi trường (DHT20)
-  </p>
+            {isDataLost ? (
+              <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-100 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> Mất dữ liệu
+              </span>
+            ) : env.temperature !== null && env.temperature > 35 ? (
+              <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-md border border-red-100 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> Cao
+              </span>
+            ) : (
+              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+                Bình thường
+              </span>
+            )}
+          </div>
 
-  <div className="flex items-baseline gap-2 mb-1">
-    <h3 className="text-3xl font-black text-blue-950">
-      {env.temperature !== null ? env.temperature : "--"}
-      <span className="text-lg text-slate-400 font-bold">°C</span>
-    </h3>
-  </div>
+          <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+            Nhiệt độ môi trường (DHT20)
+          </p>
 
-  <p className="text-sm text-slate-500">
-    Độ ẩm:{" "}
-    <span className="font-bold text-blue-600">
-      {env.humidity !== null ? `${env.humidity}%` : "--"}
-    </span>
-  </p>
-</div>
+          <div className="flex items-baseline gap-2 mb-1">
+            <h3 className="text-3xl font-black text-blue-950">
+              {displayTemp}
+              <span className="text-lg text-slate-400 font-bold">°C</span>
+            </h3>
+          </div>
+
+          <p className="text-sm text-slate-500">
+            Độ ẩm:{" "}
+            <span className="font-bold text-blue-600">
+              {displayHumi}
+            </span>
+          </p>
+        </div>
 
         {/* Storage / SD Card */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm cursor-default hover:border-blue-200 transition-colors">
@@ -155,13 +222,12 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* SECTION 2: MCU (ESP32) - Đã làm gọn lại */}
+      {/* SECTION 2: MCU (ESP32) */}
       <h2 className="text-lg font-bold text-blue-950 mb-4 flex items-center gap-2 mt-10">
         <Zap className="w-5 h-5 text-amber-500" /> Vi điều khiển ESP32
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         
-        {/* Kết nối Serial/MQTT */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center cursor-default">
           <div className="flex items-center justify-between mb-4">
             <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center shadow-sm">
@@ -174,7 +240,6 @@ useEffect(() => {
           <p className="text-sm font-medium text-slate-400">Độ trễ phản hồi: 12ms</p>
         </div>
 
-        {/* Uptime */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center cursor-default">
           <div className="flex items-center justify-between mb-4">
             <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shadow-sm">
@@ -186,7 +251,6 @@ useEffect(() => {
           <p className="text-sm font-medium text-slate-400">Giờ : Phút : Giây</p>
         </div>
 
-        {/* Packet Gửi/Nhận */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center cursor-default">
           <div className="flex items-center justify-between mb-4">
             <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
