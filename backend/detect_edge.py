@@ -18,6 +18,7 @@ from config import INTERSECTIONS, ENVIRONMENT
 import serial
 
 active_cameras = set()
+camera_last_active = {}
 active_lock = threading.Lock()
 current_uart_cam = None
 print("[*] Đang khởi tạo detect_edge cho 3 ngã tư...")
@@ -207,6 +208,15 @@ def generate_frames(cam_id: str):
     if not config:
         return
 
+    # ============================================================
+    # NẾU KHÔNG CÓ UART → TỪ CHỐI CHẠY MODEL + STREAM
+    # ============================================================
+    if srPort is None or not srPort.is_open:
+        print(f"[BLOCK] Không có kết nối UART → từ chối khởi chạy model cam {cam_id}")
+        # Cập nhật mode Fixed cho chắc
+        update_control_local(cam_id, 0, 0, 30, 30, "fixed")
+        return          # Generator rỗng → video feed bị tắt
+
     global current_uart_cam
 
     # Đánh dấu camera này đang active
@@ -214,7 +224,6 @@ def generate_frames(cam_id: str):
         active_cameras.add(cam_id)
         current_uart_cam = cam_id          # Camera mới mở sẽ được ưu tiên
         print(f"[Active] Bắt đầu stream cam {cam_id} → ưu tiên UART: {current_uart_cam}")
-
     try:
         cap = cv2.VideoCapture(config["video"])
         if not cap.isOpened():
@@ -332,6 +341,9 @@ def generate_frames(cam_id: str):
             if time.time() - last_print_time >= PRINT_INTERVAL:
                 print_traffic_stats(cam_id, config)
                 last_print_time = time.time()
+            # Cap nhat thoi gian hoat dong cuoi cung
+            with active_lock:
+                camera_last_active[cam_id] = time.time()
 
             ret, buffer = cv2.imencode(".jpg", frame)
             if not ret:
