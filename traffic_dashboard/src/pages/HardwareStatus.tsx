@@ -26,7 +26,8 @@ const HardwareStatus: React.FC = () => {
     humidity: null,
     last_update: null,
   });
-
+  // ===== Thêm state riêng cho môi trường =====
+const [envLost, setEnvLost] = useState(true);
   // true = đang Fixed / mất dữ liệu → hiển thị "--"
   const [isDataLost, setIsDataLost] = useState(false);
 
@@ -34,7 +35,53 @@ const HardwareStatus: React.FC = () => {
     setIsRefreshing(true);
     setTimeout(() => setIsRefreshing(false), 1000);
   };
+  const [sysStats, setSysStats] = useState({
+  cpu_percent: 0,
+  ram_used_gb: 0,
+  ram_total_gb: 4,
+  ram_percent: 0,
+  disk_percent: 0,
+  cpu_temp: null as number | null,
+  uptime: "00:00:00",
+  tx_packets: 0,
+  rx_packets: 0,
+});
 
+// Lịch sử nhiệt độ CPU để vẽ chart (giữ 12 điểm gần nhất)
+const [cpuTempHistory, setCpuTempHistory] = useState<{ time: string; temp: number }[]>([]);
+
+useEffect(() => {
+  const fetchSysStats = async () => {
+    try {
+      const res = await fetch("http://192.168.101.82:8000/api/system_stats"); // ← IP Pi của bạn
+      if (res.ok) {
+        const data = await res.json();
+        setSysStats(data);
+
+        // Cập nhật lịch sử nhiệt độ CPU
+        if (data.cpu_temp !== null) {
+          const nowTime = new Date().toLocaleTimeString("vi-VN", {
+            hour12: false,
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          });
+          setCpuTempHistory(prev => {
+            const newData = [...prev, { time: nowTime, temp: data.cpu_temp }];
+            if (newData.length > 12) newData.shift();
+            return newData;
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Lỗi lấy system stats:", e);
+    }
+  };
+
+  fetchSysStats();
+  const interval = setInterval(fetchSysStats, 3000);
+  return () => clearInterval(interval);
+}, []);
   // Lấy dữ liệu DHT20
   useEffect(() => {
     const fetchEnv = async () => {
@@ -139,10 +186,13 @@ const HardwareStatus: React.FC = () => {
           </div>
           <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">CPU Usage</p>
           <div className="flex items-baseline gap-2 mb-3">
-            <h3 className="text-3xl font-black text-blue-950">68<span className="text-lg text-slate-400 font-bold">%</span></h3>
+            <h3 className="text-3xl font-black text-blue-950">{isDataLost ? "--" : sysStats.cpu_percent}<span className="text-lg text-slate-400 font-bold">%</span></h3>
           </div>
           <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-amber-500 h-full w-[68%] rounded-full"></div>
+            <div 
+  className="bg-amber-500 h-full rounded-full transition-all duration-500" 
+  style={{ width: `${isDataLost ? 0 : sysStats.cpu_percent}%` }}
+></div>
           </div>
         </div>
 
@@ -156,10 +206,13 @@ const HardwareStatus: React.FC = () => {
           </div>
           <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">RAM Memory</p>
           <div className="flex items-baseline gap-2 mb-3">
-            <h3 className="text-3xl font-black text-blue-950">2.4<span className="text-lg text-slate-400 font-bold">/4 GB</span></h3>
+            <h3 className="text-3xl font-black text-blue-950">{isDataLost ? "--" : sysStats.ram_used_gb}<span className="text-lg text-slate-400 font-bold">/{sysStats.ram_total_gb} GB</span></h3>
           </div>
           <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-indigo-500 h-full w-[60%] rounded-full"></div>
+            <div 
+  className="bg-indigo-500 h-full rounded-full transition-all duration-500" 
+  style={{ width: `${isDataLost ? 0 : sysStats.ram_percent}%` }}
+></div>
           </div>
         </div>
 
@@ -214,10 +267,13 @@ const HardwareStatus: React.FC = () => {
           </div>
           <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Storage (SD Card)</p>
           <div className="flex items-baseline gap-2 mb-3">
-            <h3 className="text-3xl font-black text-blue-950">45<span className="text-lg text-slate-400 font-bold">%</span></h3>
+            <h3 className="text-3xl font-black text-blue-950">{isDataLost ? "--" : sysStats.disk_percent}<span className="text-lg text-slate-400 font-bold">%</span></h3>
           </div>
           <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-emerald-500 h-full w-[45%] rounded-full"></div>
+            <div 
+  className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
+  style={{ width: `${isDataLost ? 0 : sysStats.disk_percent}%` }}
+></div>
           </div>
         </div>
       </div>
@@ -267,7 +323,7 @@ const HardwareStatus: React.FC = () => {
             </div>
           </div>
           <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Thời gian Hoạt động</p>
-          <h3 className="text-2xl font-black text-blue-950 mb-1">02:45:10</h3>
+          <h3 className="text-2xl font-black text-blue-950 mb-1">{isDataLost ? "--:--:--" : sysStats.uptime}</h3>
           <p className="text-sm font-medium text-slate-400">Giờ : Phút : Giây</p>
         </div>
 
@@ -278,37 +334,60 @@ const HardwareStatus: React.FC = () => {
             </div>
           </div>
           <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Lưu lượng Dữ liệu</p>
-          <h3 className="text-2xl font-black text-blue-950 mb-1">1,245 / 1,240</h3>
+          <h3 className="text-2xl font-black text-blue-950 mb-1">{isDataLost ? "-- / --" : `${sysStats.tx_packets} / ${sysStats.rx_packets}`}</h3>
           <p className="text-sm font-medium text-slate-400">Packets (Tx / Rx)</p>
         </div>
       </div>
 
       {/* SECTION 3: SYSTEM CHARTS */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm cursor-default">
-        <h3 className="font-bold text-blue-950 flex items-center gap-2 mb-6">
-          <Activity className="w-5 h-5 text-blue-600" /> Biểu đồ Nhiệt độ CPU Edge Node (24h)
-        </h3>
-        <div className="h-[250px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={cpuTempData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-              <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dy={10} />
-              <YAxis domain={['dataMin - 5', 'dataMax + 5']} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
-              <Tooltip 
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
-                cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '4 4' }}
-              />
-              <Area type="monotone" dataKey="temp" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorTemp)" activeDot={{ r: 6, className: 'cursor-pointer' }} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+  <h3 className="font-bold text-blue-950 flex items-center gap-2 mb-6">
+    <Activity className="w-5 h-5 text-blue-600" /> 
+    Biểu đồ Nhiệt độ CPU Edge Node
+  </h3>
+  
+  <div className="h-[250px]">
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={cpuTempHistory} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+        <defs>
+          <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.35}/>
+            <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+        <XAxis 
+          dataKey="time" 
+          axisLine={false} 
+          tickLine={false} 
+          tick={{ fontSize: 11, fill: '#94a3b8' }} 
+          dy={8}
+        />
+        <YAxis 
+          domain={[30, 85]}          // ← độ chia dễ nhìn hơn (30°C → 85°C)
+          axisLine={false} 
+          tickLine={false} 
+          tick={{ fontSize: 11, fill: '#94a3b8' }}
+          tickFormatter={(v) => `${v}°`}
+        />
+        <Tooltip 
+          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
+          formatter={(value: number) => [`${value} °C`, "Nhiệt độ CPU"]}
+        />
+        <Area 
+          type="monotone" 
+          dataKey="temp" 
+          stroke="#ef4444" 
+          strokeWidth={3} 
+          fillOpacity={1} 
+          fill="url(#colorTemp)" 
+          isAnimationActive={false}
+          activeDot={{ r: 6 }}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  </div>
+</div>
 
     </div>
   );
