@@ -17,6 +17,10 @@ from ultralytics import YOLO
 from config import INTERSECTIONS, ENVIRONMENT
 import serial
 
+active_cameras = set()
+camera_last_active = {}
+active_lock = threading.Lock()
+current_uart_cam = None
 print("[*] Đang khởi tạo detect_edge cho 3 ngã tư...")
 
 # ==================== YOLO ====================
@@ -185,11 +189,18 @@ def print_traffic_stats(cam_id, config):
         current_mode = "adaptive" if is_adaptive else "fixed"
 
     update_control_local(cam_id, q_main, q_cross, t_main, t_cross, current_mode)
+    # ===== CHỈ GỬI UART NẾU ĐÚNG CAMERA ĐANG ƯU TIÊN =====
+    global current_uart_cam
+    with active_lock:
+        is_allowed = (cam_id == current_uart_cam)
 
     if current_mode == "adaptive" and srPort is not None:
         transmit_data_to_mcu(int(round(t_main)), int(round(t_cross)))
     else:
-        print("[UART] Fixed-time hoặc không có Serial → không gửi")
+        if not is_allowed:
+            print(f"[UART] Bỏ qua gửi từ cam {cam_id} (không phải camera đang ưu tiên)")
+        else:
+            print("[UART] Fixed-time hoặc không có Serial → không gửi")
 
 
 def generate_frames(cam_id: str):
@@ -197,131 +208,158 @@ def generate_frames(cam_id: str):
     if not config:
         return
 
-    cap = cv2.VideoCapture(config["video"])
-    if not cap.isOpened():
-        print(f"[ERROR] Không mở được video: {config['video']}")
-        return
+    # ============================================================
+    # NẾU KHÔNG CÓ UART → TỪ CHỐI CHẠY MODEL + STREAM
+    # ============================================================
+    if srPort is None or not srPort.is_open:
+        print(f"[BLOCK] Không có kết nối UART → từ chối khởi chạy model cam {cam_id}")
+        # Cập nhật mode Fixed cho chắc
+        update_control_local(cam_id, 0, 0, 30, 30, "fixed")
+        return          # Generator rỗng → video feed bị tắt
 
-    local_model = models[cam_id]
-    track_history = {}
-    counted_ids = set()
-    frame_counter = 0
-    FRAME_SKIP = 1
-    last_print_time = time.time()
-    PRINT_INTERVAL = 5.0
+    global current_uart_cam
 
-    while cap.isOpened():
-        success, frame = cap.read()
-        if not success:
-            print_traffic_stats(cam_id, config)
-            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            track_history.clear()
-            counted_ids.clear()
-            config["counts_main"] = {0: 0, 1: 0, 2: 0, 3: 0}
-            config["counts_cross"] = {0: 0, 1: 0, 2: 0, 3: 0}
-            continue
+    # Đánh dấu camera này đang active
+    with active_lock:
+        active_cameras.add(cam_id)
+        current_uart_cam = cam_id          # Camera mới mở sẽ được ưu tiên
+        print(f"[Active] Bắt đầu stream cam {cam_id} → ưu tiên UART: {current_uart_cam}")
+    try:
+        cap = cv2.VideoCapture(config["video"])
+        if not cap.isOpened():
+            print(f"[ERROR] Không mở được video: {config['video']}")
+            return
 
-        frame_counter += 1
-        if frame_counter % FRAME_SKIP != 0:
-            continue
+        local_model = models[cam_id]
+        track_history = {}
+        counted_ids = set()
+        frame_counter = 0
+        FRAME_SKIP = 1
+        last_print_time = time.time()
+        PRINT_INTERVAL = 5.0
 
-        results = local_model.track(
-            frame, persist=True, conf=0.25, imgsz=640,
-            tracker="bytetrack.yaml", verbose=False
-        )
+        while cap.isOpened():
+            success, frame = cap.read()
+            if not success:
+                print_traffic_stats(cam_id, config)
+                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                track_history.clear()
+                counted_ids.clear()
+                config["counts_main"] = {0: 0, 1: 0, 2: 0, 3: 0}
+                config["counts_cross"] = {0: 0, 1: 0, 2: 0, 3: 0}
+                continue
 
-        # Vẽ đường đếm
-        for line in config["main_lines"]:
-            cv2.line(frame, line[0], line[1], (0, 255, 0), 2)
-        for line in config["cross_lines"]:
-            cv2.line(frame, line[0], line[1], (255, 0, 0), 2)
+            frame_counter += 1
+            if frame_counter % FRAME_SKIP != 0:
+                continue
 
-        if results[0].boxes.id is not None:
-            boxes = results[0].boxes.xyxy.cpu().numpy()
-            clss = results[0].boxes.cls.cpu().numpy()
-            ids = results[0].boxes.id.cpu().numpy()
-            confs = results[0].boxes.conf.cpu().numpy()
+            results = local_model.track(
+                frame, persist=True, conf=0.25, imgsz=640,
+                tracker="bytetrack.yaml", verbose=False
+            )
 
-            for box, cls, obj_id, conf in zip(boxes, clss, ids, confs):
-                x1, y1, x2, y2 = map(int, box)
-                cls = int(cls)
-                obj_id = int(obj_id)
-                unique_id = f"{cam_id}_{obj_id}"
+            # Vẽ đường đếm
+            for line in config["main_lines"]:
+                cv2.line(frame, line[0], line[1], (0, 255, 0), 2)
+            for line in config["cross_lines"]:
+                cv2.line(frame, line[0], line[1], (255, 0, 0), 2)
 
-                if cls not in CLASS_NAMES:
-                    continue
+            if results[0].boxes.id is not None:
+                boxes = results[0].boxes.xyxy.cpu().numpy()
+                clss = results[0].boxes.cls.cpu().numpy()
+                ids = results[0].boxes.id.cpu().numpy()
+                confs = results[0].boxes.conf.cpu().numpy()
 
-                xc = (x1 + x2) // 2
-                yc = (y1 + y2) // 2
-                curr_pt = (xc, yc)
+                for box, cls, obj_id, conf in zip(boxes, clss, ids, confs):
+                    x1, y1, x2, y2 = map(int, box)
+                    cls = int(cls)
+                    obj_id = int(obj_id)
+                    unique_id = f"{cam_id}_{obj_id}"
 
-                # Vẽ box + label (luôn hiện)
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 0), 2)
-                cv2.circle(frame, curr_pt, 4, (0, 0, 255), -1)
-                label = f"{CLASS_NAMES[cls]} {obj_id} {conf:.2f}"
-                cv2.putText(frame, label, (x1, y1 - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+                    if cls not in CLASS_NAMES:
+                        continue
 
-                if unique_id in track_history:
-                    prev_pt = track_history[unique_id]
+                    xc = (x1 + x2) // 2
+                    yc = (y1 + y2) // 2
+                    curr_pt = (xc, yc)
 
-                    if unique_id not in counted_ids:
-                        # Trục chính
-                        for line in config["main_lines"]:
-                            if intersect(prev_pt, curr_pt, line[0], line[1]):
-                                config["counts_main"][cls] += 1
-                                counted_ids.add(unique_id)
-                                cv2.line(frame, line[0], line[1], (0, 0, 255), 6)
+                    # Vẽ box + label
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 0), 2)
+                    cv2.circle(frame, curr_pt, 4, (0, 0, 255), -1)
+                    label = f"{CLASS_NAMES[cls]} {obj_id} {conf:.2f}"
+                    cv2.putText(frame, label, (x1, y1 - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 
-                                now = datetime.now().strftime("%H:%M:%S")
-                                event = {
-                                    "id": int(time.time() * 1000) + obj_id,
-                                    "time": now,
-                                    "message": f"Phát hiện {CLASS_NAMES[cls]} qua Trục Chính",
-                                    "type": "vehicle",
-                                    "vehicle_type": CLASS_NAMES[cls],
-                                    "conf": f"{conf:.2f}"
-                                }
-                                config["events"].insert(0, event)
-                                break
+                    if unique_id in track_history:
+                        prev_pt = track_history[unique_id]
 
-                        # Trục phụ
-                        for line in config["cross_lines"]:
-                            if intersect(prev_pt, curr_pt, line[0], line[1]):
-                                config["counts_cross"][cls] += 1
-                                counted_ids.add(unique_id)
-                                cv2.line(frame, line[0], line[1], (0, 0, 255), 6)
+                        if unique_id not in counted_ids:
+                            # Trục chính
+                            for line in config["main_lines"]:
+                                if intersect(prev_pt, curr_pt, line[0], line[1]):
+                                    config["counts_main"][cls] += 1
+                                    counted_ids.add(unique_id)
+                                    cv2.line(frame, line[0], line[1], (0, 0, 255), 6)
 
-                                now = datetime.now().strftime("%H:%M:%S")
-                                event = {
-                                    "id": int(time.time() * 1000) + obj_id,
-                                    "time": now,
-                                    "message": f"Phát hiện {CLASS_NAMES[cls]} qua Trục Phụ",
-                                    "type": "vehicle",
-                                    "vehicle_type": CLASS_NAMES[cls],
-                                    "conf": f"{conf:.2f}"
-                                }
-                                config["events"].insert(0, event)
-                                break
+                                    now = datetime.now().strftime("%H:%M:%S")
+                                    event = {
+                                        "id": int(time.time() * 1000) + obj_id,
+                                        "time": now,
+                                        "message": f"Phát hiện {CLASS_NAMES[cls]} qua Trục Chính",
+                                        "type": "vehicle",
+                                        "vehicle_type": CLASS_NAMES[cls],
+                                        "conf": f"{conf:.2f}"
+                                    }
+                                    config["events"].insert(0, event)
+                                    break
 
-                        if len(config["events"]) > 15:
-                            config["events"].pop()
+                            # Trục phụ
+                            for line in config["cross_lines"]:
+                                if intersect(prev_pt, curr_pt, line[0], line[1]):
+                                    config["counts_cross"][cls] += 1
+                                    counted_ids.add(unique_id)
+                                    cv2.line(frame, line[0], line[1], (0, 0, 255), 6)
 
-                track_history[unique_id] = curr_pt
+                                    now = datetime.now().strftime("%H:%M:%S")
+                                    event = {
+                                        "id": int(time.time() * 1000) + obj_id,
+                                        "time": now,
+                                        "message": f"Phát hiện {CLASS_NAMES[cls]} qua Trục Phụ",
+                                        "type": "vehicle",
+                                        "vehicle_type": CLASS_NAMES[cls],
+                                        "conf": f"{conf:.2f}"
+                                    }
+                                    config["events"].insert(0, event)
+                                    break
 
-        # Cập nhật PCU + mode định kỳ
-        if time.time() - last_print_time >= PRINT_INTERVAL:
-            print_traffic_stats(cam_id, config)
-            last_print_time = time.time()
+                            if len(config["events"]) > 15:
+                                config["events"].pop()
 
-        ret, buffer = cv2.imencode(".jpg", frame)
-        if not ret:
-            continue
+                    track_history[unique_id] = curr_pt
 
-        yield (b"--frame\r\n"
-               b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n")
+            # Cập nhật PCU định kỳ
+            if time.time() - last_print_time >= PRINT_INTERVAL:
+                print_traffic_stats(cam_id, config)
+                last_print_time = time.time()
+            # Cap nhat thoi gian hoat dong cuoi cung
+            with active_lock:
+                camera_last_active[cam_id] = time.time()
 
+            ret, buffer = cv2.imencode(".jpg", frame)
+            if not ret:
+                continue
 
+            yield (b"--frame\r\n"
+                   b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n")
+
+    finally:
+        # Khi client ngắt kết nối → xóa khỏi danh sách active
+        with active_lock:
+            active_cameras.discard(cam_id)
+            if current_uart_cam == cam_id:
+                # Nếu đây là camera đang ưu tiên → chuyển quyền cho camera khác (nếu còn)
+                current_uart_cam = next(iter(active_cameras), None)
+            print(f"[Active] Dừng stream cam {cam_id} → còn lại: {list(active_cameras)} | UART ưu tiên: {current_uart_cam}")
 # Chạy standalone để test
 if __name__ == "__main__":
     import sys

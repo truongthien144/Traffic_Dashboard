@@ -173,7 +173,6 @@ const activeCameras = overviewStats.active_cameras || [];
             <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
               <Zap className="w-6 h-6" />
             </div>
-            <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md">ESP32-S3</span>
           </div>
           <p className="text-sm font-bold text-slate-500 mb-1">Trạng thái Edge Node</p>
           <div className="flex flex-col">

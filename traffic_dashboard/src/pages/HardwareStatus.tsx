@@ -107,50 +107,52 @@ useEffect(() => {
 
   // Kiểm tra mode Fixed + dữ liệu môi trường có cũ không
   useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        // 1. Kiểm tra mode từ ngã tư 1
-        const res = await fetch("http://192.168.101.82:8000/api/traffic_stats/1");
-        let fixedFromMode = false;
-        let staleControl = false;
+  const checkStatus = async () => {
+    try {
+      // 1. Kiểm tra AI / Control (chỉ dùng cho trạng thái ESP)
+      const res = await fetch("http://192.168.101.82:8000/api/traffic_stats/1");
+      let fixedFromMode = false;
+      let staleControl = false;
 
-        if (res.ok) {
-          const data = await res.json();
-          fixedFromMode = data.mode === "fixed";
+      if (res.ok) {
+        const data = await res.json();
+        fixedFromMode = data.mode === "fixed";
 
-          if (data.last_update) {
-            const seconds = (Date.now() - data.last_update * 1000) / 1000;
-            staleControl = seconds > 120; // 2 phút
-          } else {
-            staleControl = true;
-          }
-        }
-
-        // 2. Kiểm tra dữ liệu DHT20 có cũ không
-        let staleEnv = false;
-        if (env.last_update) {
-          const envTime = new Date(env.last_update).getTime();
-          const seconds = (Date.now() - envTime) / 1000;
-          staleEnv = seconds > 120;
+        if (data.last_update) {
+          const seconds = (Date.now() - data.last_update * 1000) / 1000;
+          staleControl = seconds > 120;
         } else {
-          staleEnv = env.temperature === null;
+          staleControl = true;
         }
-
-        setIsDataLost(fixedFromMode || staleControl || staleEnv);
-      } catch (e) {
-        // Nếu không gọi được API → coi như mất dữ liệu
-        setIsDataLost(true);
+      } else {
+        staleControl = true;
       }
-    };
 
-    checkStatus();
-    const interval = setInterval(checkStatus, 3000);
-    return () => clearInterval(interval);
-  }, [env.last_update, env.temperature]);
+      setIsDataLost(fixedFromMode || staleControl);
+
+      // 2. Kiểm tra DHT20 riêng
+      let staleEnv = true;
+      if (env.last_update) {
+        const envTime = new Date(env.last_update).getTime();
+        const seconds = (Date.now() - envTime) / 1000;
+        staleEnv = seconds > 30;
+      }
+      setEnvLost(staleEnv);
+
+    } catch (e) {
+      setIsDataLost(true);
+      setEnvLost(true);
+    }
+  };
+
+  checkStatus();
+  const interval = setInterval(checkStatus, 3000);
+  return () => clearInterval(interval);
+}, [env.last_update]);
 
   // Giá trị hiển thị
-  const displayTemp = isDataLost || env.temperature === null ? "--" : env.temperature;
-  const displayHumi = isDataLost || env.humidity === null ? "--" : `${env.humidity}%`;
+  const displayTemp = envLost || env.temperature === null ? "--" : env.temperature;
+const displayHumi = envLost || env.humidity === null ? "--" : `${env.humidity}%`;
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out max-w-7xl mx-auto">
@@ -186,12 +188,12 @@ useEffect(() => {
           </div>
           <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">CPU Usage</p>
           <div className="flex items-baseline gap-2 mb-3">
-            <h3 className="text-3xl font-black text-blue-950">{isDataLost ? "--" : sysStats.cpu_percent}<span className="text-lg text-slate-400 font-bold">%</span></h3>
+            <h3 className="text-3xl font-black text-blue-950">{sysStats.cpu_percent}<span className="text-lg text-slate-400 font-bold">%</span></h3>
           </div>
           <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
             <div 
   className="bg-amber-500 h-full rounded-full transition-all duration-500" 
-  style={{ width: `${isDataLost ? 0 : sysStats.cpu_percent}%` }}
+  style={{ width: `${sysStats.cpu_percent}%` }}
 ></div>
           </div>
         </div>
@@ -206,12 +208,12 @@ useEffect(() => {
           </div>
           <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">RAM Memory</p>
           <div className="flex items-baseline gap-2 mb-3">
-            <h3 className="text-3xl font-black text-blue-950">{isDataLost ? "--" : sysStats.ram_used_gb}<span className="text-lg text-slate-400 font-bold">/{sysStats.ram_total_gb} GB</span></h3>
+            <h3 className="text-3xl font-black text-blue-950">{sysStats.ram_used_gb}<span className="text-lg text-slate-400 font-bold">/{sysStats.ram_total_gb} GB</span></h3>
           </div>
           <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
             <div 
   className="bg-indigo-500 h-full rounded-full transition-all duration-500" 
-  style={{ width: `${isDataLost ? 0 : sysStats.ram_percent}%` }}
+  style={{ width: `${sysStats.ram_percent}%` }}
 ></div>
           </div>
         </div>
@@ -223,19 +225,19 @@ useEffect(() => {
               <Thermometer className="w-5 h-5" />
             </div>
 
-            {isDataLost ? (
-              <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-100 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" /> Mất dữ liệu
-              </span>
-            ) : env.temperature !== null && env.temperature > 35 ? (
-              <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-md border border-red-100 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" /> Cao
-              </span>
-            ) : (
-              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
-                Bình thường
-              </span>
-            )}
+            {envLost ? (
+  <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-100 flex items-center gap-1">
+    <AlertCircle className="w-3 h-3" /> Mất dữ liệu
+  </span>
+) : env.temperature !== null && env.temperature > 35 ? (
+  <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-md border border-red-100 flex items-center gap-1">
+    <AlertCircle className="w-3 h-3" /> Cao
+  </span>
+) : (
+  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+    Bình thường
+  </span>
+)}
           </div>
 
           <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
@@ -265,14 +267,14 @@ useEffect(() => {
             </div>
             <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">Healthy</span>
           </div>
-          <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Storage (SD Card)</p>
+          <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Storage (micro-SD Card: 64GB)</p>
           <div className="flex items-baseline gap-2 mb-3">
-            <h3 className="text-3xl font-black text-blue-950">{isDataLost ? "--" : sysStats.disk_percent}<span className="text-lg text-slate-400 font-bold">%</span></h3>
+            <h3 className="text-3xl font-black text-blue-950">{sysStats.disk_percent}<span className="text-lg text-slate-400 font-bold">%</span></h3>
           </div>
           <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
             <div 
   className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
-  style={{ width: `${isDataLost ? 0 : sysStats.disk_percent}%` }}
+  style={{ width: `${sysStats.disk_percent}%` }}
 ></div>
           </div>
         </div>
@@ -323,7 +325,7 @@ useEffect(() => {
             </div>
           </div>
           <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Thời gian Hoạt động</p>
-          <h3 className="text-2xl font-black text-blue-950 mb-1">{isDataLost ? "--:--:--" : sysStats.uptime}</h3>
+          <h3 className="text-2xl font-black text-blue-950 mb-1">{sysStats.uptime}</h3>
           <p className="text-sm font-medium text-slate-400">Giờ : Phút : Giây</p>
         </div>
 
@@ -334,7 +336,7 @@ useEffect(() => {
             </div>
           </div>
           <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Lưu lượng Dữ liệu</p>
-          <h3 className="text-2xl font-black text-blue-950 mb-1">{isDataLost ? "-- / --" : `${sysStats.tx_packets} / ${sysStats.rx_packets}`}</h3>
+          <h3 className="text-2xl font-black text-blue-950 mb-1">{`${sysStats.tx_packets} / ${sysStats.rx_packets}`}</h3>
           <p className="text-sm font-medium text-slate-400">Packets (Tx / Rx)</p>
         </div>
       </div>

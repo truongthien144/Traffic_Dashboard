@@ -78,19 +78,10 @@ const IntersectionAnalytics: React.FC = () => {
         setPcuMain(pcuMainVal);
         setPcuCross(pcuCrossVal);
 // ===== Tự chuyển Fixed khi mất tín hiệu sau 10s =====
-        if (serverLastUpdate && secondsSinceUpdate <= 10) {
-  		// Dữ liệu còn mới → dùng bình thường
-  		setLastUpdate(serverLastUpdate);
-  		setTGreenMain(data.t_green_main ?? 30);
-  		setTGreenCross(data.t_green_cross ?? 30);
-  		setMode(data.mode === "adaptive" ? "adaptive" : "fixed");
-	} else {
-  		// Dữ liệu đã cũ (> 2 phút) → ép về Fixed 30/30
-  		setMode("fixed");
-  		setTGreenMain(30);
-  		setTGreenCross(30);
-  		// Không cập nhật lastUpdate để giữ trạng thái Fixed
-	}
+        setLastUpdate(serverLastUpdate || Date.now());
+setTGreenMain(data.t_green_main ?? 30);
+setTGreenCross(data.t_green_cross ?? 30);
+setMode(data.mode === "adaptive" ? "adaptive" : "fixed");
 
         // Trend chart (dùng tổng để vẽ biểu đồ)
         const nowTime = new Date().toLocaleTimeString('vi-VN', { 

@@ -8,7 +8,6 @@
 # import jwt
 # from datetime import datetime, timedelta
 # import time
-
 # app = FastAPI(title="ITS Core API - Multi Camera")
 
 # app.add_middleware(
@@ -235,10 +234,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from config import INTERSECTIONS, ENVIRONMENT
 from auth import LoginRequest, verify_login
-from detect_edge import generate_frames
-from datetime import datetime
-
+from detect_edge import generate_frames, active_cameras, camera_last_active, active_lock
+from datetime import datetime, timedelta
+import psutil
+import os
+import time
 app = FastAPI(title="ITS Core API - Edge Node")
+
+# Biến toàn cục để tính lưu lượng mạng (delta)
+_last_net = psutil.net_io_counters()
+_last_net_time = time.time()
 
 # Cho phép Frontend từ laptop
 app.add_middleware(
@@ -284,6 +289,66 @@ def get_traffic_stats(intersection_id: str):
 def get_environment():
     return ENVIRONMENT
 
+@app.get("/api/system_stats")
+def get_system_stats():
+    global _last_net, _last_net_time
+
+    # ===== CPU =====
+    cpu_percent = psutil.cpu_percent(interval=0.3)
+
+    # ===== RAM =====
+    mem = psutil.virtual_memory()
+    ram_used_gb = round(mem.used / (1024**3), 1)
+    ram_total_gb = round(mem.total / (1024**3), 1)
+    ram_percent = round(mem.percent, 1)
+
+    # ===== Storage (microSD) =====
+    disk = psutil.disk_usage('/')
+    disk_percent = round(disk.percent, 1)
+
+    # ===== CPU Temperature =====
+    cpu_temp = None
+    try:
+        with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
+            cpu_temp = round(int(f.read().strip()) / 1000.0, 1)
+    except Exception:
+        cpu_temp = None
+
+    # ===== Uptime (Thời gian hoạt động) =====
+    boot_time = psutil.boot_time()
+    uptime_seconds = int(time.time() - boot_time)
+    hours = uptime_seconds // 3600
+    minutes = (uptime_seconds % 3600) // 60
+    seconds = uptime_seconds % 60
+    uptime_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+    # ===== Network (Lưu lượng dữ liệu) =====
+    net = psutil.net_io_counters()
+    now = time.time()
+    time_delta = max(now - _last_net_time, 0.1)
+
+    # Tính số packet / byte tăng thêm (có thể đổi sang bytes nếu muốn)
+    tx_packets = net.packets_sent - _last_net.packets_sent
+    rx_packets = net.packets_recv - _last_net.packets_recv
+
+    # Cập nhật mốc
+    _last_net = net
+    _last_net_time = now
+
+    return {
+        "cpu_percent": round(cpu_percent, 1),
+        "ram_used_gb": ram_used_gb,
+        "ram_total_gb": ram_total_gb,
+        "ram_percent": ram_percent,
+        "disk_percent": disk_percent,
+        "cpu_temp": cpu_temp,
+        "uptime": uptime_str,
+        "uptime_seconds": uptime_seconds,
+        "tx_packets": max(tx_packets, 0),
+        "rx_packets": max(rx_packets, 0),
+        "last_update": datetime.now().isoformat()
+    }
+
 @app.post("/api/update_control/{intersection_id}")
 def update_control(intersection_id: str, data: dict):
     # Giữ lại để tương thích (detect_edge đã cập nhật trực tiếp)
@@ -317,10 +382,22 @@ def get_overview_stats():
         pcu = (motos * 0.5) + (cars * 1) + (trucks * 2) + (buses * 2.5)
         total_pcu += pcu
         total_vehicles += (motos + cars + trucks + buses)
-
+    # Chỉ coi là active nếu còn gửi frame trong 8 giây gần nhất
+    now = time.time()
+    truly_active = []
+    with active_lock:
+        for cam_id in list(active_cameras):
+            last = camera_last_active.get(cam_id, 0)
+            if now - last <= 8:
+                truly_active.append(cam_id)
+            else:
+                # Tự dọn camera “zombie”
+                active_cameras.discard(cam_id)
+                camera_last_active.pop(cam_id, None)
     return {
         "total_intersections": len(INTERSECTIONS),
-        "active_nodes": len(INTERSECTIONS),
+        "active_nodes": len(truly_active),
+        "active_cameras": truly_active,
         "total_pcu": round(total_pcu),
         "total_vehicles_24h": total_vehicles,
         "system_status": "Ổn định" if True else "Mất kết nối",
