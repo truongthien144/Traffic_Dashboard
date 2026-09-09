@@ -34,7 +34,7 @@ const IntersectionAnalytics: React.FC = () => {
   const [pcuMain, setPcuMain] = useState(0);
   const [pcuCross, setPcuCross] = useState(0);
   const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
-
+  const [isRunning, setIsRunning] = useState(false);
   // ===== Fetch dữ liệu từ Backend =====
   useEffect(() => {
     const fetchData = async () => {
@@ -82,7 +82,7 @@ const IntersectionAnalytics: React.FC = () => {
 setTGreenMain(data.t_green_main ?? 30);
 setTGreenCross(data.t_green_cross ?? 30);
 setMode(data.mode === "adaptive" ? "adaptive" : "fixed");
-
+setIsRunning(data.is_running === true);
         // Trend chart (dùng tổng để vẽ biểu đồ)
         const nowTime = new Date().toLocaleTimeString('vi-VN', { 
           hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' 
@@ -121,10 +121,17 @@ setMode(data.mode === "adaptive" ? "adaptive" : "fixed");
           <div>
             <div className="flex items-center gap-3 mb-1">
               <h1 className="text-xl sm:text-2xl font-extrabold text-blue-950 tracking-tight">{intersectionName}</h1>
-              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-md text-[10px] sm:text-xs font-bold flex items-center gap-1.5 cursor-default">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                YOLO26 Active
-              </span>
+              {isRunning ? (
+  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-md text-[10px] sm:text-xs font-bold flex items-center gap-1.5 cursor-default">
+    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+    YOLO26 Active
+  </span>
+) : (
+  <span className="px-2.5 py-1 bg-slate-100 text-slate-500 border border-slate-200 rounded-md text-[10px] sm:text-xs font-bold flex items-center gap-1.5 cursor-default">
+    <div className="w-2 h-2 rounded-full bg-slate-400"></div>
+    Mất kết nối
+  </span>
+)}
             </div>
             <p className="text-slate-500 font-medium text-xs sm:text-sm">
               ID: INT-0{currentId} | Camera: Cam-AI-0{currentId} (1080p, 30fps)
@@ -204,14 +211,20 @@ setMode(data.mode === "adaptive" ? "adaptive" : "fixed");
               {/* Card kết nối */}
               <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center cursor-default">
                 <p className="text-[10px] sm:text-xs font-bold text-slate-500 mb-2 flex items-center gap-1.5 whitespace-nowrap">
-                  <Zap className="w-3.5 h-3.5 text-amber-500" /> Kết nối YOLO26
-                </p>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 bg-slate-100 h-2 rounded-full overflow-hidden">
-                    <div className="bg-emerald-500 h-full w-[100%] rounded-full animate-pulse"></div>
-                  </div>
-                  <span className="text-[10px] sm:text-xs font-bold text-emerald-600">Syncing</span>
-                </div>
+  <Zap className="w-3.5 h-3.5 text-amber-500" /> Kết nối YOLO26
+</p>
+<div className="flex items-center gap-3">
+  <div className="flex-1 bg-slate-100 h-2 rounded-full overflow-hidden">
+    <div
+      className={`h-full rounded-full transition-all duration-500 ${
+        isRunning ? "bg-emerald-500 w-full animate-pulse" : "bg-slate-300 w-0"
+      }`}
+    ></div>
+  </div>
+  <span className={`text-[10px] sm:text-xs font-bold ${isRunning ? "text-emerald-600" : "text-slate-400"}`}>
+    {isRunning ? "Syncing" : "Mất kết nối"}
+  </span>
+</div>
               </div>
             </div>
 

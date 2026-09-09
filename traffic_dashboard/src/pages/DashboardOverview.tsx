@@ -52,40 +52,49 @@ const DashboardOverview: React.FC = () => {
     total_vehicles_24h: 0,
     system_status: "Đang kết nối..."
   });
+const intersectionsInfo = overviewStats.intersections || [];
 const isOffline = overviewStats.system_status === "Mất kết nối";
 const activeCameras = overviewStats.active_cameras || [];
+const [pingMs, setPingMs] = useState<string>("--");
   // Gọi API tổng hợp dữ liệu mỗi 2 giây
   useEffect(() => {
-    const fetchOverviewStats = async () => {
-      try {
-        const response = await fetch('http://192.168.101.82:8000/api/overview_stats');
-        if (response.ok) {
-          const data = await response.json();
-          setOverviewStats(data);
-        }
-      } catch (error) {
-        console.error("Lỗi khi kết nối với Backend:", error);
-        setOverviewStats(prev => ({ ...prev, system_status: "Mất kết nối" }));
+  const fetchOverviewStats = async () => {
+    const start = performance.now();
+    try {
+      const response = await fetch('http://192.168.101.82:8000/api/overview_stats');
+      const end = performance.now();
+      const rtt = Math.round(end - start);
+
+      if (response.ok) {
+        const data = await response.json();
+        setOverviewStats(data);
+        setPingMs(`${rtt}ms`);
+      } else {
+        setPingMs("Không có tín hiệu");
       }
-    };
-
-    // Gọi lần đầu ngay khi render
-    fetchOverviewStats();
-    
-    // Thiết lập vòng lặp gọi API
-    const interval = setInterval(fetchOverviewStats, 2000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const getPingColor = (pingStr: string) => {
-    if (pingStr === 'Timeout') return 'text-red-500 font-bold';
-    const pingValue = parseInt(pingStr.replace(/\D/g, ''));
-    if (isNaN(pingValue)) return 'text-slate-500';
-    if (pingValue <= 30) return 'text-emerald-500 font-semibold';
-    if (pingValue <= 80) return 'text-amber-500 font-semibold';
-    return 'text-red-500 font-semibold';
+    } catch (error) {
+      console.error("Lỗi khi kết nối với Backend:", error);
+      setOverviewStats(prev => ({ ...prev, system_status: "Mất kết nối" }));
+      setPingMs("Không có tín hiệu");
+    }
   };
 
+  fetchOverviewStats();
+  const interval = setInterval(fetchOverviewStats, 2000);
+  return () => clearInterval(interval);
+}, []);
+
+  const getPingColor = (pingStr: string) => {
+  if (pingStr === "Không có tín hiệu" || pingStr === "Timeout" || pingStr === "--") {
+    return "text-red-500 font-bold";
+  }
+  const pingValue = parseInt(pingStr.replace(/\D/g, ""));
+  if (isNaN(pingValue)) return "text-slate-500";
+  if (pingValue <= 30) return "text-emerald-500 font-semibold";
+  if (pingValue <= 80) return "text-amber-500 font-semibold";
+  return "text-red-500 font-semibold";
+};
+  
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out max-w-7xl mx-auto">
       
@@ -225,17 +234,34 @@ const activeCameras = overviewStats.active_cameras || [];
                    </td>
                   
                   <td className="px-6 py-4">
-                    <div className="text-lg font-bold text-blue-600">
-                      {node.greenTime}
-                    </div>
-                  </td>
+  {(() => {
+    const info = intersectionsInfo.find(
+      (item: any) => item.id === node.id.replace("INT-0", "")
+    );
+
+    if (isOffline || !info) {
+      return <div className="text-lg font-bold text-slate-400">--</div>;
+    }
+
+    return (
+      <div className="text-lg font-bold text-blue-600">
+        {info.t_green_main}s
+        <span className="text-slate-400 font-medium"> / </span>
+        {info.t_green_cross}s
+      </div>
+    );
+  })()}
+</td>
                   
                   <td className="px-6 py-4">
                     <div className="flex flex-col gap-1">
                       <span className="text-sm font-semibold text-slate-700">{node.aiStatus}</span>
                       <span className="text-xs text-slate-500 font-medium">
-                        Ping: <span className={getPingColor(node.ping)}>{node.ping}</span>
-                      </span>
+  Ping:{" "}
+  <span className={getPingColor(pingMs)}>
+    {pingMs}
+  </span>
+</span>
                     </div>
                   </td>
                   
