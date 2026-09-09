@@ -234,7 +234,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from config import INTERSECTIONS, ENVIRONMENT
 from auth import LoginRequest, verify_login
-from detect_edge import generate_frames, active_cameras, camera_last_active, active_lock
+from detect_edge import generate_frames, active_cameras, camera_last_active, active_lock, worker_running, srPort, UART_PORT
 from datetime import datetime, timedelta
 import psutil
 import os
@@ -272,6 +272,11 @@ def get_traffic_stats(intersection_id: str):
     if intersection_id not in INTERSECTIONS:
         raise HTTPException(status_code=404, detail="Không tìm thấy ngã tư này")
     config = INTERSECTIONS[intersection_id]
+
+    # Worker đang chạy VÀ còn UART
+    worker_ok = worker_running.get(intersection_id, False)
+    uart_ok = srPort is not None and srPort.is_open and os.path.exists(UART_PORT)
+    is_running = worker_ok and uart_ok
     return {
         "name": config["name"],
         "counts_main": config["counts_main"],
@@ -283,6 +288,7 @@ def get_traffic_stats(intersection_id: str):
         "t_green_cross": config.get("t_green_cross", 30),
         "mode": config.get("mode", "fixed"),
         "last_update": config.get("last_update"),
+        "is_running": is_running,
     }
 
 @app.get("/api/environment")
@@ -374,7 +380,8 @@ def update_environment(data: dict):
 def get_overview_stats():
     total_pcu = 0
     total_vehicles = 0
-    for config in INTERSECTIONS.values():
+    intersections_info = []
+    for cam_id, config in INTERSECTIONS.items():
         motos = config["counts_main"].get(3, 0) + config["counts_cross"].get(3, 0)
         cars = config["counts_main"].get(0, 0) + config["counts_cross"].get(0, 0)
         trucks = config["counts_main"].get(2, 0) + config["counts_cross"].get(2, 0)
@@ -382,6 +389,13 @@ def get_overview_stats():
         pcu = (motos * 0.5) + (cars * 1) + (trucks * 2) + (buses * 2.5)
         total_pcu += pcu
         total_vehicles += (motos + cars + trucks + buses)
+
+        intersections_info.append({
+            "id": cam_id,
+            "t_green_main": config.get("t_green_main", 30),
+            "t_green_cross": config.get("t_green_cross", 30),
+            "mode": config.get("mode", "fixed"),
+        })
     # Chỉ coi là active nếu còn gửi frame trong 8 giây gần nhất
     now = time.time()
     truly_active = []
@@ -401,4 +415,5 @@ def get_overview_stats():
         "total_pcu": round(total_pcu),
         "total_vehicles_24h": total_vehicles,
         "system_status": "Ổn định" if True else "Mất kết nối",
+        "intersections": intersections_info,
     }
