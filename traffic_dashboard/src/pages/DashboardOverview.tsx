@@ -19,7 +19,7 @@ const mockIntersections = [
     name: 'Ngã tư Điện Biên Phủ - Đinh Tiên Hoàng', 
     status: 'online', 
     greenTime: '45s', 
-    aiStatus: 'YOLOv8-Active', 
+    aiStatus: 'Round-Trip Time', 
     ping: '12ms' 
   },
   { 
@@ -27,7 +27,7 @@ const mockIntersections = [
     name: 'Ngã tư Phạm Văn Đồng', 
     status: 'online', 
     greenTime: '60s', 
-    aiStatus: 'YOLOv8-Active', 
+    aiStatus: 'Round-Trip Time', 
     ping: '45ms' 
   },
   { 
@@ -35,7 +35,7 @@ const mockIntersections = [
     name: 'Ngã tư Nguyễn Hữu Cảnh', 
     status: 'online', 
     greenTime: '60s', 
-    aiStatus: 'High-Load', 
+    aiStatus: 'Round-Trip Time', 
     ping: '25ms' 
   },
 ];
@@ -47,43 +47,54 @@ const DashboardOverview: React.FC = () => {
   const [overviewStats, setOverviewStats] = useState({
     total_intersections: 3,
     active_nodes: 0,
+    active_cameras: [] as string[],
     total_pcu: 0,
     total_vehicles_24h: 0,
     system_status: "Đang kết nối..."
   });
-
+const intersectionsInfo = overviewStats.intersections || [];
+const isOffline = overviewStats.system_status === "Mất kết nối";
+const activeCameras = overviewStats.active_cameras || [];
+const [pingMs, setPingMs] = useState<string>("--");
   // Gọi API tổng hợp dữ liệu mỗi 2 giây
   useEffect(() => {
-    const fetchOverviewStats = async () => {
-      try {
-        const response = await fetch('http://localhost:8000/api/overview_stats');
-        if (response.ok) {
-          const data = await response.json();
-          setOverviewStats(data);
-        }
-      } catch (error) {
-        console.error("Lỗi khi kết nối với Backend:", error);
-        setOverviewStats(prev => ({ ...prev, system_status: "Mất kết nối" }));
+  const fetchOverviewStats = async () => {
+    const start = performance.now();
+    try {
+      const response = await fetch('http://192.168.101.82:8000/api/overview_stats');
+      const end = performance.now();
+      const rtt = Math.round(end - start);
+
+      if (response.ok) {
+        const data = await response.json();
+        setOverviewStats(data);
+        setPingMs(`${rtt}ms`);
+      } else {
+        setPingMs("Không có tín hiệu");
       }
-    };
-
-    // Gọi lần đầu ngay khi render
-    fetchOverviewStats();
-    
-    // Thiết lập vòng lặp gọi API
-    const interval = setInterval(fetchOverviewStats, 2000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const getPingColor = (pingStr: string) => {
-    if (pingStr === 'Timeout') return 'text-red-500 font-bold';
-    const pingValue = parseInt(pingStr.replace(/\D/g, ''));
-    if (isNaN(pingValue)) return 'text-slate-500';
-    if (pingValue <= 30) return 'text-emerald-500 font-semibold';
-    if (pingValue <= 80) return 'text-amber-500 font-semibold';
-    return 'text-red-500 font-semibold';
+    } catch (error) {
+      console.error("Lỗi khi kết nối với Backend:", error);
+      setOverviewStats(prev => ({ ...prev, system_status: "Mất kết nối" }));
+      setPingMs("Không có tín hiệu");
+    }
   };
 
+  fetchOverviewStats();
+  const interval = setInterval(fetchOverviewStats, 2000);
+  return () => clearInterval(interval);
+}, []);
+
+  const getPingColor = (pingStr: string) => {
+  if (pingStr === "Không có tín hiệu" || pingStr === "Timeout" || pingStr === "--") {
+    return "text-red-500 font-bold";
+  }
+  const pingValue = parseInt(pingStr.replace(/\D/g, ""));
+  if (isNaN(pingValue)) return "text-slate-500";
+  if (pingValue <= 30) return "text-emerald-500 font-semibold";
+  if (pingValue <= 80) return "text-amber-500 font-semibold";
+  return "text-red-500 font-semibold";
+};
+  
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out max-w-7xl mx-auto">
       
@@ -104,9 +115,6 @@ const DashboardOverview: React.FC = () => {
             </span>
             {overviewStats.system_status === 'Mất kết nối' ? 'Offline' : 'Live Sync'}
           </div>
-          <button className="p-2.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-slate-200 hover:border-blue-200 bg-white shadow-sm cursor-pointer active:scale-95">
-            <RefreshCw className="w-5 h-5" />
-          </button>
         </div>
       </div>
 
@@ -115,11 +123,15 @@ const DashboardOverview: React.FC = () => {
         {/* Stat Card 1 */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-4">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
-              <MapPin className="w-6 h-6" />
-            </div>
-            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">Online</span>
-          </div>
+  <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+    <MapPin className="w-6 h-6" />
+  </div>
+  {isOffline ? (
+    <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-md">Offline</span>
+  ) : (
+    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">Online</span>
+  )}
+</div>
           <p className="text-sm font-bold text-slate-500 mb-1">Nút giao Hoạt động</p>
           <div className="flex items-baseline gap-1">
             <h3 className="text-3xl font-bold text-blue-950">{overviewStats.active_nodes}</h3>
@@ -147,7 +159,7 @@ const DashboardOverview: React.FC = () => {
             <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center">
               <Activity className="w-6 h-6" />
             </div>
-            {overviewStats.total_pcu > 500 ? (
+            {overviewStats.total_pcu > 10 ? (
               <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md">Đông đúc</span>
             ) : (
               <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">Thông thoáng</span>
@@ -167,7 +179,6 @@ const DashboardOverview: React.FC = () => {
             <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
               <Zap className="w-6 h-6" />
             </div>
-            <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md">ESP32-S3</span>
           </div>
           <p className="text-sm font-bold text-slate-500 mb-1">Trạng thái Edge Node</p>
           <div className="flex flex-col">
@@ -195,7 +206,7 @@ const DashboardOverview: React.FC = () => {
                 <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider">Tên nút giao</th>
                 <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider">Trạng thái</th>
                 <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider">Đèn xanh Tối ưu</th>
-                <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider">Module AI</th>
+                <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider">API Latency</th>
                 <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider text-right">Hành động</th>
               </tr>
             </thead>
@@ -207,26 +218,47 @@ const DashboardOverview: React.FC = () => {
                     <div className="text-xs text-slate-400 font-medium font-mono">{node.id}</div>
                   </td>
                   
-                  <td className="px-6 py-4">
-                    {node.status === 'online' && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Hoạt động
-                      </span>
-                    )}
-                  </td>
+                   <td className="px-6 py-4">
+                    {isOffline || !activeCameras.includes(node.id.replace('INT-0', '')) ? (
+                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                      <AlertTriangle className="w-3.5 h-3.5" /> Tạm dừng
+                     </span>
+                   ) : (
+                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Hoạt động
+                     </span>
+                   )}
+                   </td>
                   
                   <td className="px-6 py-4">
-                    <div className="text-lg font-bold text-blue-600">
-                      {node.greenTime}
-                    </div>
-                  </td>
+  {(() => {
+    const info = intersectionsInfo.find(
+      (item: any) => item.id === node.id.replace("INT-0", "")
+    );
+
+    if (isOffline || !info) {
+      return <div className="text-lg font-bold text-slate-400">--</div>;
+    }
+
+    return (
+      <div className="text-lg font-bold text-blue-600">
+        {info.t_green_main}s
+        <span className="text-slate-400 font-medium"> / </span>
+        {info.t_green_cross}s
+      </div>
+    );
+  })()}
+</td>
                   
                   <td className="px-6 py-4">
                     <div className="flex flex-col gap-1">
                       <span className="text-sm font-semibold text-slate-700">{node.aiStatus}</span>
                       <span className="text-xs text-slate-500 font-medium">
-                        Ping: <span className={getPingColor(node.ping)}>{node.ping}</span>
-                      </span>
+  {" "}
+  <span className={getPingColor(pingMs)}>
+    {pingMs}
+  </span>
+</span>
                     </div>
                   </td>
                   

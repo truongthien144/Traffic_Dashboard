@@ -23,7 +23,7 @@ const LoginPage: React.FC = () => {
     const password = (e.currentTarget.elements[1] as HTMLInputElement).value;
 
     try {
-      const response = await fetch('http://localhost:8000/api/login', {
+      const response = await fetch('http://192.168.101.82:8000/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
