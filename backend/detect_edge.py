@@ -64,6 +64,34 @@ except Exception as e:
     srPort = None
     is_adaptive = False
 
+def ensure_serial():
+    global srPort, is_adaptive
+
+    if srPort is not None and srPort.is_open and os.path.exists(UART_PORT):
+        return True
+
+    try:
+        if srPort is not None:
+            srPort.close()
+    except:
+        pass
+    srPort = None
+
+    if os.path.exists(UART_PORT):
+        try:
+            srPort = serial.Serial(UART_PORT, BAUD, timeout=0.1)
+            time.sleep(1.5)
+            is_adaptive = True
+            print(f"[UART] Đã kết nối lại {UART_PORT} thành công")
+            return True
+        except Exception as e:
+            print(f"[UART] Mở lại cổng thất bại: {e}")
+            srPort = None
+            is_adaptive = False
+            return False
+
+    is_adaptive = False
+    return False
 
 def read_from_esp():
     global is_adaptive, last_ack_time
@@ -127,37 +155,6 @@ def transmit_data_to_mcu(main_green_time: int, cross_green_time: int):
     except Exception as e:
         print(f"[UART] Lỗi gửi: {e}")
         return False
-
-
-def ensure_serial():
-    global srPort, is_adaptive
-
-    if srPort is not None and srPort.is_open and os.path.exists(UART_PORT):
-        return True
-
-    try:
-        if srPort is not None:
-            srPort.close()
-    except:
-        pass
-    srPort = None
-
-    if os.path.exists(UART_PORT):
-        try:
-            srPort = serial.Serial(UART_PORT, BAUD, timeout=0.1)
-            time.sleep(1.5)
-            is_adaptive = True
-            print(f"[UART] Đã kết nối lại {UART_PORT} thành công")
-            return True
-        except Exception as e:
-            print(f"[UART] Mở lại cổng thất bại: {e}")
-            srPort = None
-            is_adaptive = False
-            return False
-
-    is_adaptive = False
-    return False
-
 
 # ==================== Helper ====================
 def ccw(A, B, C):
