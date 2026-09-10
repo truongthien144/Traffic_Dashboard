@@ -121,17 +121,6 @@ setIsRunning(data.is_running === true);
           <div>
             <div className="flex items-center gap-3 mb-1">
               <h1 className="text-xl sm:text-2xl font-extrabold text-blue-950 tracking-tight">{intersectionName}</h1>
-              {isRunning ? (
-  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-md text-[10px] sm:text-xs font-bold flex items-center gap-1.5 cursor-default">
-    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-    YOLO26 Active
-  </span>
-) : (
-  <span className="px-2.5 py-1 bg-slate-100 text-slate-500 border border-slate-200 rounded-md text-[10px] sm:text-xs font-bold flex items-center gap-1.5 cursor-default">
-    <div className="w-2 h-2 rounded-full bg-slate-400"></div>
-    Mất kết nối
-  </span>
-)}
             </div>
             <p className="text-slate-500 font-medium text-xs sm:text-sm">
               ID: INT-0{currentId} | Camera: Cam-AI-0{currentId} (1080p, 30fps)
@@ -175,61 +164,43 @@ setIsRunning(data.is_running === true);
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
           
           {/* Cột trái */}
-          <div className="flex flex-col gap-6 h-full">
-            <div className="grid grid-cols-2 gap-4 sm:gap-6">
+          <div className="flex flex-col gap-6 h-full min-h-0">
               
               {/* Card Thời gian xanh + Mode */}
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between cursor-default">
-                <div>
-                  <p className="text-[10px] sm:text-xs font-bold text-slate-500 mb-1">
-                    Thời gian xanh (Main / Cross)
-                  </p>
-                  <div className="flex items-baseline gap-2">
-                    <h3 className="text-2xl sm:text-3xl font-black text-blue-600">
-                      {tGreenMain}<span className="text-sm">s</span>
-                    </h3>
-                    <span className="text-slate-400">/</span>
-                    <h3 className="text-2xl sm:text-3xl font-black text-indigo-600">
-                      {tGreenCross}<span className="text-sm">s</span>
-                    </h3>
-                  </div>
-                  <p className="text-[10px] mt-1 font-semibold">
-                    Mode:{" "}
-                    <span className={mode === "adaptive" ? "text-emerald-600" : "text-amber-600"}>
-                      {mode === "adaptive" ? "Adaptive" : "Fixed-time"}
-                    </span>
-                  </p>
-                </div>
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-50 border-[3px] border-blue-500 flex items-center justify-center">
-                  <span className="text-blue-600 font-black text-xs sm:text-sm">Go</span>
-                </div>
-              </div>
+              <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm cursor-default shrink-0">
+  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-8">
+    
+    <p className="text-sm font-bold text-slate-500 whitespace-nowrap">
+      Thời gian xanh (Main / Cross)
+    </p>
+
+    <div className="flex items-baseline gap-2.5">
+      <h3 className="text-3xl sm:text-4xl font-black text-blue-600">
+        {tGreenMain}<span className="text-base sm:text-lg">s</span>
+      </h3>
+      <span className="text-slate-300 text-2xl font-light">/</span>
+      <h3 className="text-3xl sm:text-4xl font-black text-indigo-600">
+        {tGreenCross}<span className="text-base sm:text-lg">s</span>
+      </h3>
+    </div>
+
+    <p className="text-sm font-semibold whitespace-nowrap">
+      Mode:{" "}
+      <span className={mode === "adaptive" ? "text-emerald-600" : "text-amber-600"}>
+        {mode === "adaptive" ? "Adaptive" : "Fixed-time"}
+      </span>
+    </p>
+
+  </div>
+</div>
 
               {/* Card kết nối */}
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center cursor-default">
-                <p className="text-[10px] sm:text-xs font-bold text-slate-500 mb-2 flex items-center gap-1.5 whitespace-nowrap">
-  <Zap className="w-3.5 h-3.5 text-amber-500" /> Kết nối YOLO26
-</p>
-<div className="flex items-center gap-3">
-  <div className="flex-1 bg-slate-100 h-2 rounded-full overflow-hidden">
-    <div
-      className={`h-full rounded-full transition-all duration-500 ${
-        isRunning ? "bg-emerald-500 w-full animate-pulse" : "bg-slate-300 w-0"
-      }`}
-    ></div>
-  </div>
-  <span className={`text-[10px] sm:text-xs font-bold ${isRunning ? "text-emerald-600" : "text-slate-400"}`}>
-    {isRunning ? "Syncing" : "Mất kết nối"}
-  </span>
-</div>
-              </div>
-            </div>
 
             {/* Nhật ký AI */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-[350px] lg:h-[480px]">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col flex-1 min-h-[320px]">
               <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0 rounded-t-2xl">
                 <h3 className="font-bold text-sm sm:text-base text-blue-950 flex items-center gap-2">
                   <ListOrdered className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" /> Nhật ký AI (Real-time)

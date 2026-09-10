@@ -19,7 +19,7 @@ const mockIntersections = [
     name: 'Ngã tư Điện Biên Phủ - Đinh Tiên Hoàng', 
     status: 'online', 
     greenTime: '45s', 
-    aiStatus: 'YOLO26-Active', 
+    aiStatus: 'Round-Trip Time', 
     ping: '12ms' 
   },
   { 
@@ -27,7 +27,7 @@ const mockIntersections = [
     name: 'Ngã tư Phạm Văn Đồng', 
     status: 'online', 
     greenTime: '60s', 
-    aiStatus: 'YOLO26-Active', 
+    aiStatus: 'Round-Trip Time', 
     ping: '45ms' 
   },
   { 
@@ -35,7 +35,7 @@ const mockIntersections = [
     name: 'Ngã tư Nguyễn Hữu Cảnh', 
     status: 'online', 
     greenTime: '60s', 
-    aiStatus: 'YOLO26-Active', 
+    aiStatus: 'Round-Trip Time', 
     ping: '25ms' 
   },
 ];
@@ -115,9 +115,6 @@ const [pingMs, setPingMs] = useState<string>("--");
             </span>
             {overviewStats.system_status === 'Mất kết nối' ? 'Offline' : 'Live Sync'}
           </div>
-          <button className="p-2.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-slate-200 hover:border-blue-200 bg-white shadow-sm cursor-pointer active:scale-95">
-            <RefreshCw className="w-5 h-5" />
-          </button>
         </div>
       </div>
 
@@ -209,7 +206,7 @@ const [pingMs, setPingMs] = useState<string>("--");
                 <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider">Tên nút giao</th>
                 <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider">Trạng thái</th>
                 <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider">Đèn xanh Tối ưu</th>
-                <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider">Module AI</th>
+                <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider">API Latency</th>
                 <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider text-right">Hành động</th>
               </tr>
             </thead>
@@ -257,7 +254,7 @@ const [pingMs, setPingMs] = useState<string>("--");
                     <div className="flex flex-col gap-1">
                       <span className="text-sm font-semibold text-slate-700">{node.aiStatus}</span>
                       <span className="text-xs text-slate-500 font-medium">
-  Ping:{" "}
+  {" "}
   <span className={getPingColor(pingMs)}>
     {pingMs}
   </span>

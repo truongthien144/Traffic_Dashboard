@@ -38,7 +38,7 @@ const [envLost, setEnvLost] = useState(true);
   const [sysStats, setSysStats] = useState({
   cpu_percent: 0,
   ram_used_gb: 0,
-  ram_total_gb: 4,
+  ram_total_gb: 8,
   ram_percent: 0,
   disk_percent: 0,
   cpu_temp: null as number | null,
@@ -163,13 +163,6 @@ const displayHumi = envLost || env.humidity === null ? "--" : `${env.humidity}%`
           <h1 className="text-3xl font-extrabold text-blue-950 tracking-tight mb-1">Trạng thái Phần cứng</h1>
           <p className="text-slate-500 font-medium">Giám sát sức khỏe Edge Node và thiết bị vi điều khiển.</p>
         </div>
-        <button 
-          onClick={handleRefresh}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all shadow-sm font-semibold text-sm cursor-pointer active:scale-95"
-        >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
-          Đồng bộ Dữ liệu
-        </button>
       </div>
 
       {/* SECTION 1: EDGE NODE (RASPBERRY PI) METRICS */}
@@ -184,7 +177,26 @@ const displayHumi = envLost || env.humidity === null ? "--" : `${env.humidity}%`
             <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
               <Cpu className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">Medium Load</span>
+            {(() => {
+  const cpu = sysStats.cpu_percent;
+  let label = "MEDIUM LOAD";
+  let cls = "text-amber-600 bg-amber-50 border-amber-100";
+  if (cpu >= 90) {
+    label = "Warning";
+    cls = "text-red-600 bg-red-50 border-red-100";
+  } else if (cpu > 50) {
+    label = "High Load";
+    cls = "text-orange-600 bg-orange-50 border-orange-100";
+  } else if (cpu <=0) {
+    label = "Mất kết nối";
+    cls = "text-slate-500 bg-slate-100 border-slate-200";
+  }
+  return (
+    <span className={`text-xs font-bold px-2 py-1 rounded-md border ${cls}`}>
+      {label}
+    </span>
+  );
+})()}
           </div>
           <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">CPU Usage</p>
           <div className="flex items-baseline gap-2 mb-3">
@@ -204,7 +216,26 @@ const displayHumi = envLost || env.humidity === null ? "--" : `${env.humidity}%`
             <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center">
               <Database className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">Safe</span>
+            {(() => {
+  const used = sysStats.ram_used_gb;
+  let label = "Safe";
+  let cls = "text-emerald-600 bg-emerald-50 border-emerald-100";
+  if (used >= 6) {
+    label = "Warning";
+    cls = "text-red-600 bg-red-50 border-red-100";
+  } else if (used > 4) {
+    label = "High";
+    cls = "text-amber-600 bg-amber-50 border-amber-100";
+  } else if (used <= 0) {
+    label = "Mất kết nối";
+    cls = "text-slate-500 bg-slate-100 border-slate-200";
+  }
+  return (
+    <span className={`text-xs font-bold px-2 py-1 rounded-md border ${cls}`}>
+      {label}
+    </span>
+  );
+})()}
           </div>
           <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">RAM Memory</p>
           <div className="flex items-baseline gap-2 mb-3">
@@ -265,7 +296,26 @@ const displayHumi = envLost || env.humidity === null ? "--" : `${env.humidity}%`
             <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center">
               <HardDrive className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">Healthy</span>
+            {(() => {
+  const disk = sysStats.disk_percent;
+  let label = "Healthy";
+  let cls = "text-emerald-600 bg-emerald-50 border-emerald-100";
+  if (disk >= 80) {
+    label = "Warning";
+    cls = "text-red-600 bg-red-50 border-red-100";
+  } else if (disk > 50) {
+    label = "High";
+    cls = "text-amber-600 bg-amber-50 border-amber-100";
+  } else if (disk <= 0) {
+    label = "Mất kết nối";
+    cls = "text-amber-600 bg-amber-50 border-amber-100";
+  }
+  return (
+    <span className={`text-xs font-bold px-2 py-1 rounded-md border ${cls}`}>
+      {label}
+    </span>
+  );
+})()}
           </div>
           <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Storage (micro-SD Card: 64GB)</p>
           <div className="flex items-baseline gap-2 mb-3">
@@ -314,7 +364,7 @@ const displayHumi = envLost || env.humidity === null ? "--" : `${env.humidity}%`
   </h3>
   
   <p className="text-sm font-medium text-slate-400">
-    {isDataLost ? "Không có phản hồi" : "Độ trễ phản hồi: 12ms"}
+    {isDataLost ? "Không có phản hồi" : ""}
   </p>
 </div>
 
