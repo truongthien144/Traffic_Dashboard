@@ -57,7 +57,7 @@ useEffect(() => {
       if (res.ok) {
         const data = await res.json();
         setSysStats(data);
-
+        setIsDataLost(!(data.uart_ok === true));
         // Cập nhật lịch sử nhiệt độ CPU
         if (data.cpu_temp !== null) {
           const nowTime = new Date().toLocaleTimeString("vi-VN", {
@@ -72,9 +72,12 @@ useEffect(() => {
             return newData;
           });
         }
-      }
+      } else {
+            setIsDataLost(true);
+        }
     } catch (e) {
       console.error("Lỗi lấy system stats:", e);
+      setIsDataLost(true);
     }
   };
 
@@ -108,42 +111,30 @@ useEffect(() => {
   // Kiểm tra mode Fixed + dữ liệu môi trường có cũ không
   useEffect(() => {
   const checkStatus = async () => {
-    try {
-      // 1. Kiểm tra AI / Control (chỉ dùng cho trạng thái ESP)
-      const res = await fetch("http://192.168.101.82:8000/api/traffic_stats/1");
-      let fixedFromMode = false;
-      let staleControl = false;
+  try {
+    const res = await fetch("http://192.168.101.82:8000/api/traffic_stats/1");
 
-      if (res.ok) {
-        const data = await res.json();
-        fixedFromMode = data.mode === "fixed";
-
-        if (data.last_update) {
-          const seconds = (Date.now() - data.last_update * 1000) / 1000;
-          staleControl = seconds > 120;
-        } else {
-          staleControl = true;
-        }
-      } else {
-        staleControl = true;
-      }
-
-      setIsDataLost(fixedFromMode || staleControl);
-
-      // 2. Kiểm tra DHT20 riêng
-      let staleEnv = true;
-      if (env.last_update) {
-        const envTime = new Date(env.last_update).getTime();
-        const seconds = (Date.now() - envTime) / 1000;
-        staleEnv = seconds > 30;
-      }
-      setEnvLost(staleEnv);
-
-    } catch (e) {
-      setIsDataLost(true);
-      setEnvLost(true);
+    if (res.ok) {
+      const data = await res.json();
+      // Có UART → Online; không UART → Offline
+      const uartOk = data.uart_ok === true;
+    } else {
+      // Backend lỗi / không phản hồi
     }
-  };
+
+    // DHT20 giữ nguyên
+    let staleEnv = true;
+    if (env.last_update) {
+      const envTime = new Date(env.last_update).getTime();
+      const seconds = (Date.now() - envTime) / 1000;
+      staleEnv = seconds > 30;
+    }
+    setEnvLost(staleEnv);
+  } catch (e) {
+    // Backend tắt / mất mạng
+    setEnvLost(true);
+  }
+};
 
   checkStatus();
   const interval = setInterval(checkStatus, 3000);
@@ -204,9 +195,9 @@ const displayHumi = envLost || env.humidity === null ? "--" : `${env.humidity}%`
           </div>
           <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
             <div 
-  className="bg-amber-500 h-full rounded-full transition-all duration-500" 
-  style={{ width: `${sysStats.cpu_percent}%` }}
-></div>
+             className="bg-amber-500 h-full rounded-full transition-all duration-500" 
+             style={{ width: `${sysStats.cpu_percent}%` }}
+            ></div>
           </div>
         </div>
 
