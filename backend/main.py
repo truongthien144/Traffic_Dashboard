@@ -234,8 +234,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from config import INTERSECTIONS, ENVIRONMENT
 from auth import LoginRequest, verify_login
-from detect_edge import generate_frames, active_cameras, camera_last_active, active_lock, worker_running, srPort, UART_PORT
+from detect_edge import generate_frames, active_cameras, camera_last_active, active_lock, worker_running, srPort, UART_PORT, ensure_serial
 from datetime import datetime, timedelta
+import detect_edge
 import psutil
 import os
 import time
@@ -289,6 +290,7 @@ def get_traffic_stats(intersection_id: str):
         "mode": config.get("mode", "fixed"),
         "last_update": config.get("last_update"),
         "is_running": is_running,
+        "uart_ok": uart_ok
     }
 
 @app.get("/api/environment")
@@ -340,7 +342,17 @@ def get_system_stats():
     # Cập nhật mốc
     _last_net = net
     _last_net_time = now
+    # Thử mở lại UART nếu vừa cắm lại
+    try:
+     ensure_serial()
+    except Exception:
+     pass
 
+    uart_ok = (
+     detect_edge.srPort is not None
+     and getattr(detect_edge.srPort, "is_open", False)
+     and os.path.exists(UART_PORT)
+    )
     return {
         "cpu_percent": round(cpu_percent, 1),
         "ram_used_gb": ram_used_gb,
@@ -352,7 +364,8 @@ def get_system_stats():
         "uptime_seconds": uptime_seconds,
         "tx_packets": max(tx_packets, 0),
         "rx_packets": max(rx_packets, 0),
-        "last_update": datetime.now().isoformat()
+        "last_update": datetime.now().isoformat(),
+        "uart_ok": uart_ok
     }
 
 @app.post("/api/update_control/{intersection_id}")
