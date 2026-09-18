@@ -141,11 +141,22 @@ def read_from_esp():
 threading.Thread(target=read_from_esp, daemon=True).start()
 print("[UART] Đã khởi động thread đọc ESP32")
 
+def calc_xor_checksum(data: str) -> str:
+    """Tính XOR checksum, trả về 2 ký tự hex (ví dụ: '5A')"""
+    cs = 0
+    for ch in data:
+        cs ^= ord(ch)
+    return f"{cs:02X}"
 
 def transmit_data_to_mcu(main_green_time: int, cross_green_time: int):
     if srPort is None or not srPort.is_open:
         return False
-    packet = f"M:{main_green_time}|C:{cross_green_time}\n"
+    #Create data
+    body = f"M:{main_green_time}|C:{cross_green_time}"
+    #Calculate checksum
+    checksum = calc_xor_checksum(body)
+    #Merge to completed data
+    packet = f"{body}*{checksum}\n"
     print(f"[UART TX] {packet.strip()}")
     try:
         with uart_lock:
