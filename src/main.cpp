@@ -87,14 +87,48 @@ void TaskUART(void *pvParameters) {
             if (c == '\n') {
                 buffer[index] = '\0';
 
+                // Tìm dấu '*' phân tách body và checksum
+                char *star = strchr(buffer, '*');
+
+                if (star == NULL) {
+                    // Không có checksum → từ chối
+                    Serial.println("[NO CHECKSUM]");
+                    index = 0;
+                    continue;
+                }
+
+                // Tách body và checksum
+                *star = '\0';              // cắt chuỗi tại '*'
+                const char *body = buffer;
+                const char *cs_str = star + 1;
+
+                // ===== Tính XOR checksum của body =====
+                uint8_t cs = 0;
+                for (const char *p = body; *p != '\0'; p++) {
+                    cs ^= (uint8_t)(*p);
+                }
+
+                char expected[8];
+                sprintf(expected, "%02X", cs);
+
+                // So sánh checksum (không phân biệt hoa/thường)
+                if (strcasecmp(cs_str, expected) != 0) {
+                    Serial.print("[CHECKSUM FAIL] got=");
+                    Serial.print(cs_str);
+                    Serial.print(" expected=");
+                    Serial.println(expected);
+                    index = 0;
+                    continue;
+                }
+
+                // ===== Checksum đúng → parse M và C =====
                 int M = 0, C = 0;
-                if (sscanf(buffer, "M:%d|C:%d", &M, &C) == 2) {
-
-                    if (M > 0 && C > 0) {
+                if (sscanf(body, "M:%d|C:%d", &M, &C) == 2) {
+                    int total = M + C;
+                    if (M > 0 && C > 0 && total <= 60) {
                         TrafficData_t data = {M, C};
-                        xQueueOverwrite(xQueue, &data);  // Keeping New Data
+                        xQueueOverwrite(xQueue, &data);
 
-                        // Cập nhật thời điểm nhận hợp lệ
                         portENTER_CRITICAL(&muxTimeout);
                         lastValidTick = xTaskGetTickCount();
                         isFixedMode = false;
@@ -103,9 +137,8 @@ void TaskUART(void *pvParameters) {
                         Serial.println("[NEW DATA OVERWRITE]");
                         Serial.println("[ACK] OK");
                     } else {
-                        Serial.println("[INVALID]");
+                        Serial.println("[INVALID] M/C <= 0");
                     }
-
                 } else {
                     Serial.println("[PARSE FAIL]");
                 }
