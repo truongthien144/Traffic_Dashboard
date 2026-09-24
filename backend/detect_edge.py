@@ -20,7 +20,7 @@ active_cameras = set()
 camera_last_active = {}
 active_lock = threading.Lock()
 current_uart_cam = None
-
+last_priority_cam = None   # camera ưu tiên cuối cùng (để auto-reload)
 # Background workers
 latest_frames = {}          # cam_id → jpeg bytes
 worker_running = {}         # cam_id → bool
@@ -65,15 +65,17 @@ except Exception as e:
     is_adaptive = False
 
 def ensure_serial():
-    global srPort, is_adaptive
+    global srPort, is_adaptive, last_priority_cam
 
     if srPort is not None and srPort.is_open and os.path.exists(UART_PORT):
         return True
 
+    was_down = True  # đang mất kết nối
+
     try:
         if srPort is not None:
             srPort.close()
-    except:
+    except Exception:
         pass
     srPort = None
 
@@ -83,6 +85,16 @@ def ensure_serial():
             time.sleep(1.5)
             is_adaptive = True
             print(f"[UART] Đã kết nối lại {UART_PORT} thành công")
+            # ===== Tự reload camera ưu tiên =====
+            cam = last_priority_cam
+            if cam:
+                with worker_lock:
+                    running = worker_running.get(cam, False)
+                if not running:
+                    print(f"[UART] Tự khởi động lại AI cam ưu tiên: {cam}")
+                    start_camera_worker(cam)
+                else:
+                    print(f"[UART] Cam {cam} vẫn đang chạy nền → tiếp tục gửi UART")
             return True
         except Exception as e:
             print(f"[UART] Mở lại cổng thất bại: {e}")
@@ -247,7 +259,7 @@ def print_traffic_stats(cam_id, config):
 
 # ==================== Background Worker ====================
 def camera_worker(cam_id: str):
-    global current_uart_cam, is_adaptive
+    global current_uart_cam, is_adaptive, last_priority_cam
 
     config = INTERSECTIONS.get(cam_id)
     if not config:
@@ -258,6 +270,7 @@ def camera_worker(cam_id: str):
     with active_lock:
         active_cameras.add(cam_id)
         current_uart_cam = cam_id          # ưu tiên UART
+        last_priority_cam = cam_id
 
     try:
         if not ensure_serial():
@@ -277,10 +290,17 @@ def camera_worker(cam_id: str):
 
         while worker_running.get(cam_id, False):
             if not ensure_serial():
-                print(f"[Worker] Mất UART → dừng cam {cam_id}")
+                print(f"[Worker] Mất UART → tạm dừng AI cam {cam_id}, chờ cắm lại...")
                 update_control_local(cam_id, 0, 0, 30, 30, "fixed")
                 is_adaptive = False
-                break
+                # Chờ UART quay lại, không thoát worker
+                while worker_running.get(cam_id, False) and not ensure_serial():
+                    time.sleep(1.5)
+                if not worker_running.get(cam_id, False):
+                    break
+                print(f"[Worker] UART đã có lại → tiếp tục AI cam {cam_id}")
+                is_adaptive = True
+                continue
 
             success, frame = cap.read()
             if not success:
