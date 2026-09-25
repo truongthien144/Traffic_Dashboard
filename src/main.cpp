@@ -125,7 +125,7 @@ void TaskUART(void *pvParameters) {
                 int M = 0, C = 0;
                 if (sscanf(body, "M:%d|C:%d", &M, &C) == 2) {
                     int total = M + C;
-                    if (M > 0 && C > 0 && total <= 60) {
+                    if (M >= 15 && C >= 15 && total <= 60) {
                         TrafficData_t data = {M, C};
                         xQueueOverwrite(xQueue, &data);
 
@@ -137,7 +137,7 @@ void TaskUART(void *pvParameters) {
                         Serial.println("[NEW DATA OVERWRITE]");
                         Serial.println("[ACK] OK");
                     } else {
-                        Serial.println("[INVALID] M/C <= 0");
+                        Serial.println("[INVALID]");
                     }
                 } else {
                     Serial.println("[PARSE FAIL]");
@@ -158,8 +158,8 @@ void TaskTraffic(void *pvParameters) {
 
     TrafficState_t state = PHASE_MAIN_GREEN_CROSS_RED;
 
-    TrafficData_t current = {30, 30};     // Giống code gốc của bạn
-    TrafficData_t pending = current;    // AlwaysKeeping New Data
+    TrafficData_t current = {30, 30};     // Khởi tạo
+    TrafficData_t pending = current;    // Gán pending = current (khởi tạo)
 
     int counter = current.M;
     bool justChanged = true;
@@ -169,7 +169,7 @@ void TaskTraffic(void *pvParameters) {
 
     while (1) {
 
-        // ===== ALWAYS KEEPING NEW DATA (DONT LOSE DATA) =====
+        // ===== Luôn giữ dữ liệu mới (Không mất dữ liệu) =====
         TrafficData_t recv;
         if (xQueueReceive(xQueue, &recv, 0) == pdPASS) {
             pending = recv;
@@ -186,7 +186,7 @@ void TaskTraffic(void *pvParameters) {
             unsigned long now = millis();
             long drift = now - idealTime;
 
-            // Console Output to test drift
+            //  test drift
             // Serial.print("REAL: ");
             // Serial.print(now);
             // Serial.print(" | IDEAL: ");
@@ -239,7 +239,7 @@ void TaskTraffic(void *pvParameters) {
                 if (counter == 1) {
                     state = PHASE_MAIN_RED_CROSS_GREEN;
 
-                    // UPDATE EXACTLY AT GREEN
+                    // Cập nhật tại biên xanh
                     current.C = pending.C;
                     counter = current.C;
                     justChanged = true;
@@ -272,7 +272,7 @@ void TaskTraffic(void *pvParameters) {
                 if (counter == 1) {
                     state = PHASE_MAIN_GREEN_CROSS_RED;
 
-                    // UPDATE EXACTLY AT GREEN
+                    // Cập nhật tại biên xanh
                     current.M = pending.M;
                     counter = current.M;
                     justChanged = true;
@@ -291,7 +291,7 @@ void TaskTraffic(void *pvParameters) {
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
-// ================= DHT20 TASH =================
+// ================= DHT20 TASK =================
 void TaskDHT20(void *pvParameters) {
     Wire.begin(DHT_SDA, DHT_SCL);
     dht.begin();
@@ -333,7 +333,7 @@ void setup() {
     displayMain.setBrightness(0x0f);
     displayCross.setBrightness(0x0f);
 
-    // Queue size = 1 → overwrite realtime
+    // Queue size = 1 → ghi đè realtime
     xQueue = xQueueCreate(1, sizeof(TrafficData_t));
 
     lastValidTick = xTaskGetTickCount();
