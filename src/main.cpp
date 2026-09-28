@@ -12,7 +12,7 @@ DHT20 dht;
 #define UART_BAUD           115200
 #define YELLOW_TIME         3
 
-#define TIMEOUT_MS          120000UL     // 2 phút không nhận gói tin hợp lệ → Fallback
+#define TIMEOUT_MS          15000UL     // 15 giây không nhận gói tin hợp lệ → Fallback
 #define DEFAULT_M           30
 #define DEFAULT_C           30
 
