@@ -20,6 +20,7 @@ active_cameras = set()
 camera_last_active = {}
 active_lock = threading.Lock()
 current_uart_cam = None
+ACK_TIMEOUT = 15  # giây không thấy [ACK] → coi mất link UART
 last_priority_cam = None   # camera ưu tiên cuối cùng (để auto-reload)
 # Background workers
 latest_frames = {}          # cam_id → jpeg bytes
@@ -64,26 +65,46 @@ except Exception as e:
     srPort = None
     is_adaptive = False
 
+def uart_device_ok() -> bool:
+    """Chỉ kiểm tra USB-serial còn gắn và mở được."""
+    return (
+        srPort is not None
+        and srPort.is_open
+        and os.path.exists(UART_PORT)
+    )
+
+def uart_link_ok() -> bool:
+    """
+    USB còn + ESP còn trả [ACK] trong ACK_TIMEOUT giây.
+    - Rút cả USB  → False ngay (device mất)
+    - Còn USB, rút TX/RX → False sau ~15s không ACK
+    """
+    if not uart_device_ok():
+        return False
+    return (time.time() - last_ack_time) <= ACK_TIMEOUT
+
 def ensure_serial():
     global srPort, is_adaptive, last_priority_cam
 
-    if srPort is not None and srPort.is_open and os.path.exists(UART_PORT):
+    if uart_device_ok():
         return True
 
     was_down = True  # đang mất kết nối
 
     try:
         if srPort is not None:
+           try:
             srPort.close()
+           except Exception:
+            pass
+        srPort = None
     except Exception:
-        pass
-    srPort = None
+     srPort = None
 
     if os.path.exists(UART_PORT):
         try:
             srPort = serial.Serial(UART_PORT, BAUD, timeout=0.1)
             time.sleep(1.5)
-            is_adaptive = True
             print(f"[UART] Đã kết nối lại {UART_PORT} thành công")
             # ===== Tự reload camera ưu tiên =====
             cam = last_priority_cam
@@ -216,8 +237,11 @@ def update_control_local(cam_id, pcu_main, pcu_cross, t_main, t_cross, mode):
 
 def print_traffic_stats(cam_id, config):
     global is_adaptive
-
-    if srPort is None or not os.path.exists(UART_PORT):
+    # Mất cổng USB → Fixed ngay
+    if not uart_device_ok():
+        is_adaptive = False
+    # Còn USB nhưng lâu không ACK → Fixed
+    elif not uart_link_ok():
         is_adaptive = False
 
     counts_main = config["counts_main"]
@@ -227,6 +251,9 @@ def print_traffic_stats(cam_id, config):
     q_cross = calculate_pcu(counts_cross)
     t_main, t_cross = calculate_t_green(q_main, q_cross)
 
+    link_ok = uart_link_ok() and is_adaptive
+    current_mode = "adaptive" if link_ok else "fixed"
+
     print("=" * 55)
     print(f" NGÃ TƯ {cam_id} - {config['name']}")
     print(f" Main  → Car:{counts_main[0]} Bus:{counts_main[1]} Truck:{counts_main[2]} Motor:{counts_main[3]}")
@@ -234,28 +261,31 @@ def print_traffic_stats(cam_id, config):
     print(f" PCU: {q_main:.1f} / {q_cross:.1f}  |  Đèn xanh: {t_main:.0f}s / {t_cross:.0f}s | Mode: {'adaptive' if is_adaptive else 'fixed'}")
     print("=" * 55)
 
-    current_mode = "adaptive" if is_adaptive else "fixed"
-    update_control_local(cam_id, q_main, q_cross, t_main, t_cross, current_mode)
+    # ===== Ép số hiển thị + gửi ESP khi Fixed (timeout / mất USB) =====
+    if current_mode == "adaptive":
+        send_m, send_c = int(round(t_main)), int(round(t_cross))
+    else:
+        send_m, send_c = 30, 30
+
+    update_control_local(cam_id, q_main, q_cross, send_m, send_c, current_mode)
 
     with active_lock:
-        is_allowed = (cam_id == current_uart_cam)
+       is_allowed = (cam_id == current_uart_cam)
 
-    # ===== CHỈ GỬI UART NẾU ĐÚNG CAMERA ƯU TIÊN =====
-    if current_mode == "adaptive" and srPort is not None and os.path.exists(UART_PORT) and is_allowed:
-        success = transmit_data_to_mcu(int(round(t_main)), int(round(t_cross)))
-        if not success:
-            print("[UART] Gửi thất bại → chuyển Fixed")
-            is_adaptive = False
+    if uart_device_ok() and is_allowed:
+       success = transmit_data_to_mcu(send_m, send_c)
+       if current_mode != "adaptive":
+            print("[UART] Fixed/timeout ACK → gửi 30/30 xuống ESP")
+       if not success:
+            print("[UART] Gửi thất bại")
+
     else:
-        reasons = []
-        if current_mode != "adaptive":
-            reasons.append("Fixed-time")
-        if srPort is None or not os.path.exists(UART_PORT):
-            reasons.append("không có Serial")
-        if not is_allowed:
+       reasons = []
+       if not uart_device_ok():
+            reasons.append("mất cổng USB")
+       if not is_allowed:
             reasons.append("không phải camera ưu tiên")
-        print(f"[UART] Bỏ qua gửi từ cam {cam_id} ({', '.join(reasons)})")
-
+       print(f"[UART] Bỏ qua gửi cam {cam_id} ({', '.join(reasons) or 'n/a'})")
 
 # ==================== Background Worker ====================
 def camera_worker(cam_id: str):

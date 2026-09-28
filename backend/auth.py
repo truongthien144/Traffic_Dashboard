@@ -4,7 +4,7 @@ import jwt
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 
-SECRET_KEY = "its_core_secret_key_super_safe"
+SECRET_KEY = "its_core_secret_key_super_safe_2026!"
 ALGORITHM = "HS256"
 
 USERS = {
