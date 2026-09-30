@@ -329,6 +329,9 @@ def camera_worker(cam_id: str):
                 if not worker_running.get(cam_id, False):
                     break
                 print(f"[Worker] UART đã có lại → tiếp tục AI cam {cam_id}")
+                with active_lock:
+                    active_cameras.add(cam_id)
+                    camera_last_active[cam_id] = time.time()
                 is_adaptive = True
                 continue
 

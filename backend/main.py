@@ -182,8 +182,11 @@ def get_overview_stats():
     with active_lock:
         for cam_id in list(active_cameras):
             last = camera_last_active.get(cam_id, 0)
+            still_running = worker_running.get(cam_id, False)
             if now - last <= 8:
                 truly_active.append(cam_id)
+            elif still_running:
+                pass
             else:
                 # Tự dọn camera “zombie”
                 active_cameras.discard(cam_id)
